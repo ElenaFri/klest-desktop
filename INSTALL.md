@@ -49,7 +49,7 @@ Klest is a Wayland compositor. You can run it two ways:
 - **Nested**, inside an existing Wayland or X11 session (useful for development):
 
   ```sh
-  ./build/klest
+  ./build/src/klest
   ```
 
 - **From a TTY**, as a standalone session: switch to a free virtual terminal
@@ -105,13 +105,13 @@ qemu-system-x86_64 \
 Inside the guest, install the requirements above, then launch Klest from a TTY:
 
 ```sh
-./build/klest
+./build/src/klest
 ```
 
 If it fails to find a GPU, force software rendering:
 
 ```sh
-WLR_RENDERER=pixman ./build/klest
+WLR_RENDERER=pixman ./build/src/klest
 ```
 
 ## Configuration

@@ -19,8 +19,8 @@
 
 ## Project setup
 
-- [ ] Set up Meson + Ninja build skeleton
-- [ ] Configure strict warnings (`-Wall -Wextra`) and sanitizers (ASan/UBSan)
+- [x] Set up Meson + Ninja build skeleton
+- [x] Configure strict warnings (`-Wall -Wextra`) and sanitizers (ASan/UBSan)
 - [ ] Set up CI (GitHub Actions: build + test)
 - [ ] Add unit + integration test harness
 - [ ] Document the Debian build/run requirements
