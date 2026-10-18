@@ -22,7 +22,8 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            build-essential meson ninja-build pkg-config git ca-certificates
+            build-essential meson ninja-build pkg-config git ca-certificates \
+            libwlroots-0.18-dev libwayland-dev wayland-protocols
 
       - uses: actions/checkout@v4
 

@@ -1,0 +1,6 @@
+option(
+    'compositor',
+    type: 'feature',
+    value: 'auto',
+    description: 'Build the Wayland compositor (requires wlroots, wayland-server)',
+)

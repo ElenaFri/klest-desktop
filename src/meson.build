@@ -1,9 +1,8 @@
 # Klest sources.
 #
-# Kept minimal for now. Testable logic lives in the `klest-core` library so it
-# can be exercised by unit tests; `main.c` stays a thin entry point. As the
-# modular architecture takes shape (ADR 0009), this will split into the
-# compositor, services, and shared code.
+# Testable logic lives in `klest-core`; the compositor lives in its own library
+# so it can be built and replaced independently (ADR 0009). `main.c` stays a
+# thin entry point.
 
 klest_core = static_library(
     'klest-core',
@@ -16,9 +15,27 @@ klest_core_dep = declare_dependency(
     include_directories: include_directories('.'),
 )
 
+klest_deps = [klest_core_dep]
+
+if have_compositor
+    klest_compositor = static_library(
+        'klest-compositor',
+        'compositor/server.c',
+        include_directories: klest_inc,
+        c_args: ['-DWLR_USE_UNSTABLE'],
+        dependencies: [wlroots_dep, wayland_server_dep],
+    )
+    klest_compositor_dep = declare_dependency(
+        link_with: klest_compositor,
+        dependencies: [wlroots_dep, wayland_server_dep],
+    )
+    klest_deps += klest_compositor_dep
+endif
+
 executable(
     'klest',
     'main.c',
-    dependencies: klest_core_dep,
+    include_directories: klest_inc,
+    dependencies: klest_deps,
     install: true,
 )

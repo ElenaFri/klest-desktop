@@ -1,17 +1,44 @@
 /*
  * Klest — a lean, adaptable Wayland desktop environment in C.
  *
- * Build-skeleton entry point. For now it only reports its version, which is
- * enough to verify the Meson/Ninja toolchain (ADR 0006). The Wayland
- * compositor (ADR 0002, 0004) will grow from here.
+ * Entry point: `--version` reports the version; otherwise Klest launches its
+ * Wayland compositor (ADR 0002, 0004).
  */
 
 #include "klest.h"
 
-#include <stdio.h>
+#include <config.h>
 
-int main(void)
+#include <stdio.h>
+#include <string.h>
+
+#if KLEST_HAVE_COMPOSITOR
+#include "compositor/server.h"
+#endif
+
+static int run_compositor(void)
 {
-	printf("Klest %s\n", klest_version());
-	return 0;
+#if KLEST_HAVE_COMPOSITOR
+	struct klest_server server = {0};
+	if (!klest_server_init(&server)) {
+		return 1;
+	}
+	int status = klest_server_run(&server) ? 0 : 1;
+	klest_server_finish(&server);
+	return status;
+#else
+	fprintf(stderr, "Klest was built without compositor support.\n");
+	return 1;
+#endif
+}
+
+int main(int argc, char *argv[])
+{
+	if (argc > 1 &&
+			(strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0)) {
+		printf("Klest %s\n", klest_version());
+		return 0;
+	}
+
+	return run_compositor();
 }

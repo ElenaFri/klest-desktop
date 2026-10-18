@@ -1,6 +1,8 @@
 # Installing & running Klest
 
-> **Early development.** Klest has no buildable code yet. This document describes the intended procedure on Debian (ADR 0003); steps will be confirmed once the Meson build skeleton lands (see [TODO.md](TODO.md)).
+> **Early development.** Klest currently builds a minimal compositor that brings
+> up outputs with a background (see [TODO.md](TODO.md)); window management and
+> input are not implemented yet. The procedure below targets Debian (ADR 0003).
 
 ## Requirements
 

@@ -27,7 +27,7 @@
 
 ## First milestones
 
-- [ ] Minimal wlroots-based compositor that starts and shows an output
+- [x] Minimal wlroots-based compositor that starts and shows an output
 - [ ] Handle keyboard and mouse input
 - [ ] Open, move, and close a window
 - [ ] Load configuration from a TOML file
