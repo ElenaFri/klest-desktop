@@ -2,6 +2,8 @@
 
 _**A lean, adaptable Wayland desktop environment in C, built to adapt and thriving through simplicity.**_
 
+<img src="logo.png" alt="Klest's logo" width="200">
+
 Klest takes its name from the crossbill, a bird adapted to demanding environments. Its distinctive beak is not a decoration, but a practical answer to the conditions in which it lives.
 
 The same idea guides this project: a desktop environment should adapt to its user, not the other way around. Klest aims to be lightweight and straightforward to configure, with sensible defaults for those who want things to work and enough flexibility for those who want to shape their own environment.
