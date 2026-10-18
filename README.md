@@ -26,3 +26,5 @@ Minimalism, here, is not about removing features for the sake of it. It is about
 - **Module communication:** Unix sockets
 
 The reasoning behind each choice, as well as the questions still open, are documented in the [Architecture Decision Records](docs/adr/README.md).
+
+For build, test and install instructions, see [INSTALL.md](INSTALL.md).
