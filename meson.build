@@ -25,4 +25,14 @@ add_project_arguments(
     language: 'c',
 )
 
+# Compile-time configuration (version, ...), exposed as <config.h>.
+conf_data = configuration_data()
+conf_data.set_quoted('KLEST_VERSION', meson.project_version())
+configure_file(output: 'config.h', configuration: conf_data)
+
+# include_directories('.') exposes both the source and build roots, so
+# generated headers like config.h are found alongside hand-written ones.
+klest_inc = include_directories('.')
+
 subdir('src')
+subdir('test')

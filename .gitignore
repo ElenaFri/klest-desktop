@@ -54,6 +54,31 @@ dkms.conf
 # debug information files
 *.dwo
 
-# Meson / Ninja build directory
-/build/
+# Meson / Ninja build directories
+/build*/
 /builddir/
+
+# Meson subprojects (keep wrap files and local packagefiles)
+/subprojects/*/
+!/subprojects/packagefiles/
+/subprojects/packagecache/
+
+# Compilation database (when symlinked to the project root)
+/compile_commands.json
+
+# Core dumps / debugging
+core
+core.*
+vgcore.*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cache/
+
+# OS cruft
+.DS_Store
+Thumbs.db

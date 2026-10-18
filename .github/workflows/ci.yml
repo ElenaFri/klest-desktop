@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    container: debian:stable
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            args: ""
+          - name: sanitizers
+            args: "--buildtype=debug -Db_sanitize=address,undefined"
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential meson ninja-build pkg-config git ca-certificates
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: meson setup build ${{ matrix.args }}
+
+      - name: Build
+        run: ninja -C build
+
+      - name: Test
+        run: meson test -C build --print-errorlogs

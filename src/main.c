@@ -6,14 +6,12 @@
  * compositor (ADR 0002, 0004) will grow from here.
  */
 
-#include <stdio.h>
+#include "klest.h"
 
-#ifndef KLEST_VERSION
-#define KLEST_VERSION "unknown"
-#endif
+#include <stdio.h>
 
 int main(void)
 {
-	printf("Klest %s\n", KLEST_VERSION);
+	printf("Klest %s\n", klest_version());
 	return 0;
 }
