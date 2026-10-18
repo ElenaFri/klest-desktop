@@ -28,7 +28,7 @@
 ## First milestones
 
 - [x] Minimal wlroots-based compositor that starts and shows an output
-- [ ] Handle keyboard and mouse input
-- [ ] Open, move, and close a window
+- [x] Handle keyboard and mouse input
+- [x] Open, move, and close a window
 - [ ] Load configuration from a TOML file
 - [ ] First GTK configuration tool

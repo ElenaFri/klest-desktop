@@ -1,9 +1,9 @@
 /*
  * Klest — Wayland compositor server (ADR 0002, 0004).
  *
- * First milestone: start a wlroots-based compositor that brings up every output
- * and fills it with a solid background. Window management, input and xdg-shell
- * will build on this foundation.
+ * Brings up the display, backend, renderer and scene, configures every output
+ * with a solid background, and wires in the window (xdg-shell) and input
+ * subsystems.
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -17,11 +17,13 @@
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_subcompositor.h>
+#include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 
 /* Background colour shown on every output (RGBA, premultiplied alpha). */
@@ -166,6 +168,9 @@ bool klest_server_init(struct klest_server *server)
 	server->new_output.notify = server_new_output;
 	wl_signal_add(&server->backend->events.new_output, &server->new_output);
 
+	klest_views_init(server);
+	klest_input_init(server);
+
 	return true;
 
 error_display:
@@ -200,6 +205,13 @@ void klest_server_finish(struct klest_server *server)
 		return;
 	}
 	wl_display_destroy_clients(server->display);
+
+	wlr_scene_node_destroy(&server->scene->tree.node);
+	wlr_xcursor_manager_destroy(server->cursor_mgr);
+	wlr_cursor_destroy(server->cursor);
+	wlr_allocator_destroy(server->allocator);
+	wlr_renderer_destroy(server->renderer);
+	wlr_backend_destroy(server->backend);
 	wl_display_destroy(server->display);
 	server->display = NULL;
 }

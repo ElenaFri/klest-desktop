@@ -82,3 +82,8 @@ vgcore.*
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# VM images / test artifacts (see INSTALL.md)
+*.qcow2
+*.img
+*.iso
