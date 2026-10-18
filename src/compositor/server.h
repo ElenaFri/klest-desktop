@@ -19,6 +19,27 @@ struct klest_toplevel;
 
 struct klest_config;
 
+struct wlr_output;
+struct wlr_scene_rect;
+struct wlr_scene_tree;
+struct wlr_layer_shell_v1;
+
+/* A single output (monitor). Public so the layer-shell code can reserve its
+ * usable area and react to the output being removed. */
+struct klest_output {
+	struct wl_list link; /* klest_server.outputs */
+	struct klest_server *server;
+	struct wlr_output *wlr_output;
+	struct wlr_scene_rect *background;
+
+	/* Area left after layer surfaces reserve exclusive zones (layout coords). */
+	struct wlr_box usable_area;
+
+	struct wl_listener frame;
+	struct wl_listener request_state;
+	struct wl_listener destroy;
+};
+
 /* Central compositor state. This struct is intentionally wide: it mirrors the
  * canonical wlroots compositor layout (cf. tinywl), where the server owns the
  * display, backend, renderer, scene, seat and the many wl_listener members that
@@ -38,11 +59,27 @@ struct klest_server {
 	struct wl_list outputs; /* klest_output.link */
 	struct wl_listener new_output;
 
+	/* Scene layers, created bottom-to-top so their render order is fixed
+	 * regardless of when surfaces are added (ADR 0009). Windows live in
+	 * toplevel_tree, between the bottom and top layer-shell layers. */
+	struct {
+		struct wlr_scene_tree *background;
+		struct wlr_scene_tree *bottom;
+		struct wlr_scene_tree *top;
+		struct wlr_scene_tree *overlay;
+	} layers;
+	struct wlr_scene_tree *toplevel_tree;
+
 	/* Windows (xdg-shell). */
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_toplevel;
 	struct wl_listener new_xdg_popup;
 	struct wl_list toplevels; /* klest_toplevel.link, front-to-back */
+
+	/* Desktop components (wlr-layer-shell): panels, backgrounds, etc. */
+	struct wlr_layer_shell_v1 *layer_shell;
+	struct wl_listener new_layer_surface;
+	struct wl_list layer_surfaces; /* klest_layer_surface.link */
 
 	/* Input (seat, keyboard, pointer). */
 	struct wlr_seat *seat;
@@ -84,5 +121,14 @@ void klest_server_finish(struct klest_server *server);
 /* Subsystem setup, called by klest_server_init(). */
 void klest_views_init(struct klest_server *server);
 void klest_input_init(struct klest_server *server);
+void klest_layers_init(struct klest_server *server);
+
+/* Recomputes the position and reserved area of every layer surface on the
+ * given output. Called when outputs or layer surfaces change. */
+void klest_arrange_output_layers(struct klest_output *output);
+
+/* Closes any layer surface bound to an output that is being destroyed. */
+void klest_layers_output_destroyed(struct klest_server *server,
+	struct wlr_output *wlr_output);
 
 #endif /* KLEST_COMPOSITOR_SERVER_H */

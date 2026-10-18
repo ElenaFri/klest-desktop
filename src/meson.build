@@ -41,12 +41,22 @@ if have_compositor
         command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
     )
 
+    # wlroots' layer-shell header includes this generated protocol header.
+    layer_shell_header = custom_target(
+        'wlr-layer-shell-unstable-v1-protocol.h',
+        input: wlr_layer_shell_xml,
+        output: 'wlr-layer-shell-unstable-v1-protocol.h',
+        command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
+    )
+
     klest_compositor = static_library(
         'klest-compositor',
         'compositor/server.c',
         'compositor/view.c',
         'compositor/input.c',
+        'compositor/layer.c',
         xdg_shell_header,
+        layer_shell_header,
         include_directories: [klest_inc, include_directories('.')],
         c_args: ['-DWLR_USE_UNSTABLE'],
         dependencies: [wlroots_dep, wayland_server_dep, xkbcommon_dep,

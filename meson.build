@@ -37,6 +37,10 @@ have_compositor = wlroots_dep.found() and wayland_server_dep.found() \
     and wayland_protocols_dep.found() and xkbcommon_dep.found() \
     and wayland_scanner.found()
 
+# wlr-layer-shell is a wlroots protocol, not shipped by wayland-protocols, so we
+# vendor its XML and generate the server/client glue ourselves (ADR 0009).
+wlr_layer_shell_xml = files('protocol/wlr-layer-shell-unstable-v1.xml')
+
 # Optional GTK configuration tool (ADR 0005). GTK is only ever linked into the
 # tools, never the compositor, keeping the core lean.
 gtk4_dep = dependency('gtk4', required: get_option('settings'))

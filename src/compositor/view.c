@@ -7,11 +7,11 @@
 
 #include "view.h"
 
-#include <assert.h>
 #include <stdlib.h>
 
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -276,7 +276,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data)
 	toplevel->server = server;
 	toplevel->xdg_toplevel = xdg_toplevel;
 	toplevel->scene_tree = wlr_scene_xdg_surface_create(
-		&server->scene->tree, xdg_toplevel->base);
+		server->toplevel_tree, xdg_toplevel->base);
 	toplevel->scene_tree->node.data = toplevel;
 	xdg_toplevel->base->data = toplevel->scene_tree;
 
@@ -325,16 +325,29 @@ static void server_new_xdg_popup(struct wl_listener *listener, void *data)
 	struct wlr_xdg_popup *xdg_popup = data;
 	(void)listener;
 
+	/* The parent is either another xdg surface or a layer surface; both store
+	 * their scene tree in the wlr object's `data` field. */
+	struct wlr_scene_tree *parent_tree = NULL;
+	struct wlr_xdg_surface *xdg_parent =
+		wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
+	if (xdg_parent != NULL) {
+		parent_tree = xdg_parent->data;
+	} else {
+		struct wlr_layer_surface_v1 *layer_parent =
+			wlr_layer_surface_v1_try_from_wlr_surface(xdg_popup->parent);
+		if (layer_parent != NULL) {
+			parent_tree = layer_parent->data;
+		}
+	}
+	if (parent_tree == NULL) {
+		return;
+	}
+
 	struct klest_popup *popup = calloc(1, sizeof(*popup));
 	if (popup == NULL) {
 		return;
 	}
 	popup->xdg_popup = xdg_popup;
-
-	struct wlr_xdg_surface *parent =
-		wlr_xdg_surface_try_from_wlr_surface(xdg_popup->parent);
-	assert(parent != NULL);
-	struct wlr_scene_tree *parent_tree = parent->data;
 	xdg_popup->base->data =
 		wlr_scene_xdg_surface_create(parent_tree, xdg_popup->base);
 

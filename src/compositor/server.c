@@ -50,17 +50,6 @@ static void remove_termination_signals(struct klest_server *server)
 	}
 }
 
-struct klest_output {
-	struct wl_list link; /* klest_server.outputs */
-	struct klest_server *server;
-	struct wlr_output *wlr_output;
-	struct wlr_scene_rect *background;
-
-	struct wl_listener frame;
-	struct wl_listener request_state;
-	struct wl_listener destroy;
-};
-
 static void output_frame(struct wl_listener *listener, void *data)
 {
 	struct klest_output *output = wl_container_of(listener, output, frame);
@@ -84,6 +73,7 @@ static void output_request_state(struct wl_listener *listener, void *data)
 	wlr_output_commit_state(output->wlr_output, event->state);
 	wlr_scene_rect_set_size(output->background,
 		output->wlr_output->width, output->wlr_output->height);
+	klest_arrange_output_layers(output);
 }
 
 static void output_destroy(struct wl_listener *listener, void *data)
@@ -91,6 +81,7 @@ static void output_destroy(struct wl_listener *listener, void *data)
 	struct klest_output *output = wl_container_of(listener, output, destroy);
 	(void)data;
 
+	klest_layers_output_destroyed(output->server, output->wlr_output);
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
 	wl_list_remove(&output->destroy.link);
@@ -131,6 +122,7 @@ static void server_new_output(struct wl_listener *listener, void *data)
 	}
 	output->server = server;
 	output->wlr_output = wlr_output;
+	wlr_output->data = output;
 	const float *bg = (server->config != NULL)
 		? server->config->background_color
 		: KLEST_BACKGROUND_COLOR;
@@ -141,6 +133,8 @@ static void server_new_output(struct wl_listener *listener, void *data)
 		free(output);
 		return;
 	}
+	/* Keep the solid fill below every scene layer. */
+	wlr_scene_node_lower_to_bottom(&output->background->node);
 
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);
@@ -157,6 +151,8 @@ static void server_new_output(struct wl_listener *listener, void *data)
 		wlr_scene_output_create(server->scene, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, layout_output,
 		scene_output);
+
+	klest_arrange_output_layers(output);
 }
 
 bool klest_server_init(struct klest_server *server)
@@ -213,10 +209,19 @@ bool klest_server_init(struct klest_server *server)
 	server->scene_layout =
 		wlr_scene_attach_output_layout(server->scene, server->output_layout);
 
+	/* Fixed z-order, bottom to top: background < bottom < windows < top <
+	 * overlay (ADR 0009). */
+	server->layers.background = wlr_scene_tree_create(&server->scene->tree);
+	server->layers.bottom = wlr_scene_tree_create(&server->scene->tree);
+	server->toplevel_tree = wlr_scene_tree_create(&server->scene->tree);
+	server->layers.top = wlr_scene_tree_create(&server->scene->tree);
+	server->layers.overlay = wlr_scene_tree_create(&server->scene->tree);
+
 	server->new_output.notify = server_new_output;
 	wl_signal_add(&server->backend->events.new_output, &server->new_output);
 
 	klest_views_init(server);
+	klest_layers_init(server);
 	klest_input_init(server);
 
 	return true;
