@@ -8,6 +8,7 @@ Each record uses a short status:
 
 - **Accepted** — locked in; changing it would reshape the project.
 - **Proposed** — a sensible starting point, still open to revision.
+- **Deferred** — not needed yet; revisit when a concrete need appears.
 - **Superseded** — replaced by a later record (which it links to).
 
 ## Index
@@ -21,18 +22,19 @@ Each record uses a short status:
 | 0005 | [GUI toolkit: GTK](0005-gui-toolkit-gtk.md) | Proposed |
 | 0006 | [Build system: Meson + Ninja](0006-build-meson-ninja.md) | Proposed |
 | 0007 | [Configuration format: TOML](0007-config-toml.md) | Proposed |
-| 0008 | [Inter-module communication: Unix sockets](0008-ipc-unix-sockets.md) | Proposed |
-| 0009 | [Modular architecture & process boundaries](0009-modular-architecture.md) | Proposed |
+| 0008 | [Inter-module communication](0008-ipc-unix-sockets.md) | Deferred |
+| 0009 | [Modular architecture & process boundaries](0009-modular-architecture.md) | Accepted |
 
 ## Open questions
 
-The decisions above depend on three boundaries that still need to be settled:
+One boundary still needs to be settled:
 
 1. **wlroots scope** — stay close to the library, or hide it behind a Klest
    abstraction? (see 0004)
-2. **Module granularity** — what lives inside the compositor, and what becomes
-   an independent program? This is the most consequential choice: libraries can
-   change, but a poor split of responsibilities is far costlier to fix.
-   (see 0009)
-3. **Configuration contract** — simple defaults for newcomers, fine-grained
-   control for advanced users. (see 0007)
+
+Two earlier open questions are now settled:
+
+- **Module granularity** — resolved by 0009: a minimal compositor plus
+  standalone Wayland clients for every other component.
+- **Configuration contract** — resolved by 0007: simple TOML defaults with
+  advanced overrides.

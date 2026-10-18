@@ -9,12 +9,12 @@
 - [x] GUI toolkit: GTK
 - [x] Build system: Meson + Ninja
 - [x] Configuration format: TOML (tomlc17, vendored — ADR 0007)
-- [ ] Inter-module communication: Unix sockets
+- [x] Inter-module communication: deferred — Wayland covers compositor ↔ component; Unix sockets only for a future Klest control channel (ADR 0008)
 
 ## Open questions to settle
 
 - [ ] wlroots scope: stay close vs. hide behind a Klest abstraction (ADR 0004)
-- [ ] Module granularity: what is inside the compositor vs. standalone (ADR 0009)
+- [x] Module granularity: minimal compositor + standalone Wayland clients (ADR 0009)
 - [x] Configuration contract: simple defaults + advanced overrides (ADR 0007)
 
 ## Project setup
@@ -33,3 +33,16 @@
 - [x] Open, move, and close a window
 - [x] Load configuration from a TOML file
 - [x] First GTK configuration tool (`klest-settings`)
+
+## Roadmap — components (ADR 0009)
+
+The compositor stays minimal; every other part is a standalone Wayland client
+that anchors to the screen through layer-shell.
+
+- [ ] Compositor: implement `wlr-layer-shell-unstable-v1` (+ headless test)
+- [ ] `klest-background` — wallpaper (first layer-shell client, validates the pattern)
+- [ ] `klest-panel` — bar (workspaces, clock)
+- [ ] `klest-launcher` — application launcher
+- [ ] Notifications daemon
+- [ ] Session startup: launch the compositor and its components together
+- [ ] Klest control channel (Unix socket) — only if a real need appears (ADR 0008)

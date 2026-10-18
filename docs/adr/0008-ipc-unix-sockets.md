@@ -1,27 +1,31 @@
-# 0008 — Inter-module communication: Unix sockets
+# 0008 — Inter-module communication
 
-**Status:** Proposed
+**Status:** Deferred (scope reduced by 0009)
 
 ## Context
 
-If Klest separates responsibilities into independent local processes (0009),
-those processes need a way to talk to each other. The mechanism should be
-simple, local, and well supported in C.
+If Klest separated responsibilities into independent local processes, those
+processes would need a way to talk to each other.
 
 ## Decision
 
-Where independent components need to communicate, use **Unix domain sockets**.
+The architecture decision (0009) keeps the compositor minimal and makes every
+other component a **standalone Wayland client**. The compositor ↔ component
+channel is therefore **Wayland itself** (primarily the layer-shell protocol) —
+not a Klest-specific transport. Most components need **no custom IPC at all**.
+
+A dedicated inter-process channel is only justified for a **Klest-specific
+control need** that Wayland does not cover, for example:
+
+- asking a running component (or the compositor) to reload its configuration;
+- a `klestctl`-style command to query or drive the session.
+
+**When such a need actually appears**, use **Unix domain sockets** (simple,
+local, well-supported in C, no external broker). Until then this decision stays
+deferred, to avoid building IPC machinery nothing uses.
 
 ## Consequences
 
-- Simple and reliable for local, same-machine components.
-- Standard, well-understood C APIs; no external message broker.
-- A message/protocol layer on top of the socket still needs to be defined.
-
-## Dependency on module granularity
-
-This decision is **conditional** on the architecture actually splitting work
-across processes. The communication protocol depends on how components are
-separated (0009): if a function lives inside the compositor, it needs no socket
-at all. Settle the boundaries first; adopt sockets only where a real process
-boundary exists, to avoid needless IPC complexity.
+- No socket layer is introduced speculatively.
+- When a control channel is needed, Unix sockets are the chosen mechanism; a
+  small message/protocol layer on top of the socket will then have to be defined.
