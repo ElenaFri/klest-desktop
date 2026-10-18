@@ -72,13 +72,15 @@ X11-only apps won't show). Install one, e.g.:
 sudo apt install foot
 ```
 
-Then set it up once as your launcher, and press `Alt`+`Return` to open it:
+Set it up once as your launcher, then press `Alt`+`Return` to open it:
 
 ```sh
 mkdir -p ~/.config/klest
 cp examples/config.toml ~/.config/klest/config.toml
-sed -i 's/^terminal = ""/terminal = "foot"/' ~/.config/klest/config.toml
+vim ~/.config/klest/config.toml
 ```
+
+Change `terminal = ""` to `terminal = "foot"` and save the file.
 
 Alternatively, launch any Wayland client from another terminal, pointing it at
 Klest's socket (printed on startup, usually `wayland-0`):
@@ -111,15 +113,14 @@ You can edit it by hand, or use the GTK tool (built when GTK 4 is available):
 ./build/src/klest-settings
 ```
 
-## Testing in a VM (QEMU)
+## Testing in a QEMU VM
 
-A VM is useful for testing a full session in isolation, on a clean Debian, without risking your working machine. For day-to-day development, prefer **nested** mode (above); for CI, prefer the **headless** backend (`WLR_BACKENDS=headless WLR_RENDERER=pixman`).
+A Debian 13 VM provides an isolated full-session test. If `klest-debian.qcow2` already exists, skip image creation.
 
-### Create the Debian image
-
-Download Debian's prebuilt cloud image, grow it, and set a root password:
+### Create and start the VM (host)
 
 ```sh
+sudo apt install qemu-system-x86 qemu-utils libguestfs-tools
 wget -O klest-debian.qcow2 https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
 qemu-img resize klest-debian.qcow2 20G
 sudo virt-customize -a klest-debian.qcow2 \
@@ -128,102 +129,79 @@ sudo virt-customize -a klest-debian.qcow2 \
     --run-command 'systemctl enable systemd-networkd'
 ```
 
-Boot it with the launch command below and log in as `root` / `klest`; networking
-comes up automatically via DHCP.
-
-### Launch the VM
-
-Start the Debian guest with a virtio GPU so wlroots has a DRM device to drive:
+From the image's directory, launch QEMU:
 
 ```sh
 qemu-system-x86_64 \
-    -enable-kvm \
-    -m 4096 \
-    -smp 2 \
-    -vga virtio \
-    -display gtk,gl=on \
-    -device virtio-keyboard-pci \
-    -device virtio-tablet-pci \
-    -nic user,model=virtio-net-pci \
+    -enable-kvm -m 4096 -smp 2 \
+    -vga virtio -display gtk,gl=on \
+    -device virtio-keyboard-pci -device virtio-tablet-pci \
+    -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:2222-:22 \
     -drive file=klest-debian.qcow2,if=virtio
 ```
 
-- `-vga virtio` + `-display gtk,gl=on` — virtio-gpu with host GL, so rendering
-  is reasonable; without `gl=on`, Klest falls back to software rendering
-  (`WLR_RENDERER=pixman`).
-- `-nic user,model=virtio-net-pci` — NAT networking, so the guest has internet
-  (needed for `apt install`) with no host setup.
-- `-device virtio-tablet-pci` — gives absolute pointer positioning, which makes
-  the mouse usable inside the guest window.
-- `-enable-kvm` — hardware acceleration (Linux host); drop it if unavailable.
+Log in on the VM console as `root` / `klest`. If KVM is unavailable, remove `-enable-kvm`.
 
-### Working over SSH (so copy-paste works)
+### Prepare Debian
 
-To paste commands into the guest, work over SSH from your host terminal. Add an
-SSH port forward to the NIC:
+This cloud image's cloud kernel lacks the Virtio GPU driver. Install the standard kernel and reboot:
 
 ```sh
-    -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
-```
-
-Then, inside the guest, install the SSH server:
-
-```sh
-apt install -y openssh-server
-```
-
-Cloud images often ship without SSH host keys, which makes the service fail to
-start. Generate them:
-
-```sh
+apt update
+apt install -y linux-image-amd64 openssh-server vim
 ssh-keygen -A
+reboot
 ```
 
-Allow root login by editing the config (no copy-paste needed yet):
+At GRUB, select **Advanced options** and boot the standard `-amd64` kernel, not the `-cloud-amd64` one. Confirm `uname -r` no longer contains `cloud`, then check the GPU:
 
 ```sh
-vim /etc/ssh/sshd_config
+modprobe virtio_gpu
+ls /dev/dri
 ```
 
-Find the `PermitRootLogin` line and make it read exactly:
+### Transfer the source over SSH
 
+In the VM console, enable password login for this local-only QEMU port forward:
+
+```sh
+vim /etc/ssh/sshd_config.d/00-klest-vm.conf
 ```
+
+Add and save:
+
+```text
 PermitRootLogin yes
+PasswordAuthentication yes
 ```
 
-Save and restart the server:
+Then run `sshd -t && systemctl enable --now ssh`. From the host, connect with `ssh -p 2222 root@localhost` (password `klest`). Verify the displayed host-key fingerprint against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` in the VM before accepting it. If the VM was recreated, remove its stale host key with `ssh-keygen -R '[localhost]:2222'` and verify the new fingerprint.
+
+From the project root on the host, copy the source:
 
 ```sh
-systemctl restart ssh
+tar --exclude=build --exclude=.git --exclude=.cache --exclude='*.qcow2' -czf /tmp/klest.tar.gz .
+scp -P 2222 /tmp/klest.tar.gz root@localhost:/root/
 ```
 
-From the host, connect with your normal terminal (clipboard works as usual):
+### Build and run Klest
+
+In the VM over SSH:
 
 ```sh
-ssh -p 2222 root@localhost
+mkdir -p /root/klest
+tar -xzf /root/klest.tar.gz -C /root/klest
+apt install -y build-essential meson ninja-build pkg-config \
+    libwlroots-0.18-dev libwayland-dev libwayland-bin wayland-protocols \
+    libxkbcommon-dev libgtk-4-dev foot
+cd /root/klest
+meson setup build && ninja -C build && meson test -C build
+mkdir -p /root/.config/klest
+cp examples/config.toml /root/.config/klest/config.toml
+vim /root/.config/klest/config.toml
 ```
 
-Inside the guest, install the requirements above, then launch Klest from a TTY:
-
-```sh
-./build/src/klest
-```
-
-If it fails to find a GPU, force software rendering:
-
-```sh
-WLR_RENDERER=pixman ./build/src/klest
-```
-
-## Configuration
-
-Klest reads its settings from a TOML file (ADR 0007). Default location:
-
-```
-~/.config/klest/klest.toml
-```
-
-Sensible defaults apply when no file is present.
+Set `terminal = "foot"`. Then, on the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src/klest`. Press `Alt`+`Return` to open `foot`, then `Alt`+`Escape` to quit.
 
 ## Tests
 
