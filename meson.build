@@ -46,6 +46,9 @@ configure_file(output: 'config.h', configuration: conf_data)
 # generated headers like config.h are found alongside hand-written ones.
 klest_inc = include_directories('.')
 
+# Vendored third-party code (built in isolation; see ADR 0007).
+subdir('third_party/tomlc17')
+
 subdir('src')
 subdir('test')
 

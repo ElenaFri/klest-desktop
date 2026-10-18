@@ -5,7 +5,11 @@
  * handles a small set of compositor keybindings (Alt + key).
  */
 
+#define _POSIX_C_SOURCE 200809L
+
+#include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
@@ -25,6 +29,7 @@
 
 #include "server.h"
 #include "view.h"
+#include "config/config.h"
 
 struct klest_keyboard {
 	struct wl_list link; /* klest_server.keyboards */
@@ -123,12 +128,32 @@ static void cursor_frame(struct wl_listener *listener, void *data)
 	wlr_seat_pointer_notify_frame(server->seat);
 }
 
+/* Launches a command detached from the compositor, via the shell. */
+static void spawn(const char *cmd)
+{
+	if (cmd == NULL || cmd[0] == '\0') {
+		wlr_log(WLR_INFO, "no terminal configured ([keybindings] terminal)");
+		return;
+	}
+	pid_t pid = fork();
+	if (pid == 0) {
+		setsid();
+		execl("/bin/sh", "/bin/sh", "-c", cmd, (char *)NULL);
+		_exit(127);
+	} else if (pid < 0) {
+		wlr_log(WLR_ERROR, "failed to fork for '%s'", cmd);
+	}
+}
+
 /* Compositor keybindings. Returns true if the key was consumed. */
 static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 {
 	switch (sym) {
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->display);
+		return true;
+	case XKB_KEY_Return:
+		spawn(server->config != NULL ? server->config->terminal : NULL);
 		return true;
 	case XKB_KEY_F1: {
 		/* Cycle to the next window. */
@@ -215,7 +240,13 @@ static void server_new_keyboard(struct klest_server *server,
 	wlr_keyboard_set_keymap(wlr_keyboard, keymap);
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
-	wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
+
+	int32_t rate = 25, delay = 600;
+	if (server->config != NULL) {
+		rate = server->config->keyboard_repeat_rate;
+		delay = server->config->keyboard_repeat_delay;
+	}
+	wlr_keyboard_set_repeat_info(wlr_keyboard, rate, delay);
 
 	keyboard->modifiers.notify = keyboard_handle_modifiers;
 	wl_signal_add(&wlr_keyboard->events.modifiers, &keyboard->modifiers);
@@ -284,6 +315,9 @@ void klest_input_init(struct klest_server *server)
 {
 	wl_list_init(&server->keyboards);
 	server->cursor_mode = KLEST_CURSOR_PASSTHROUGH;
+
+	/* Reap spawned children automatically so they don't become zombies. */
+	signal(SIGCHLD, SIG_IGN);
 
 	server->cursor = wlr_cursor_create();
 	wlr_cursor_attach_output_layout(server->cursor, server->output_layout);

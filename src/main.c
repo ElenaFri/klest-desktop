@@ -14,12 +14,17 @@
 
 #if KLEST_HAVE_COMPOSITOR
 #include "compositor/server.h"
+#include "config/config.h"
 #endif
 
 static int run_compositor(void)
 {
 #if KLEST_HAVE_COMPOSITOR
+	struct klest_config config;
+	klest_config_load(&config, NULL);
+
 	struct klest_server server = {0};
+	server.config = &config;
 	if (!klest_server_init(&server)) {
 		return 1;
 	}

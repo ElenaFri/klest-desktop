@@ -61,16 +61,37 @@ Klest is a Wayland compositor. You can run it two ways:
 - **From a TTY**, as a standalone session: switch to a free virtual terminal
   (e.g. `Ctrl+Alt+F3`), log in, then run the same command.
 
-Once running, launch a Wayland client to get a window, for example:
+On startup you'll see an empty desktop: a dark background and the cursor. This is
+expected — Klest is a minimal compositor with no panel or launcher, so nothing is
+open yet.
+
+To get a window you need a **Wayland-native** terminal (Klest has no XWayland, so
+X11-only apps won't show). Install one, e.g.:
 
 ```sh
-foot          # or weston-terminal, or any Wayland app
+sudo apt install foot
+```
+
+Then set it up once as your launcher, and press `Alt`+`Return` to open it:
+
+```sh
+mkdir -p ~/.config/klest
+cp examples/config.toml ~/.config/klest/config.toml
+sed -i 's/^terminal = ""/terminal = "foot"/' ~/.config/klest/config.toml
+```
+
+Alternatively, launch any Wayland client from another terminal, pointing it at
+Klest's socket (printed on startup, usually `wayland-0`):
+
+```sh
+WAYLAND_DISPLAY=wayland-0 foot
 ```
 
 ### Keybindings
 
 | Shortcut            | Action                        |
 | ------------------- | ----------------------------- |
+| `Alt` + `Return`    | Launch the configured terminal |
 | `Alt` + `Escape`    | Quit Klest                    |
 | `Alt` + `F1`        | Cycle focus between windows    |
 | `Alt` + left-drag   | Move the window under the cursor (client-initiated) |

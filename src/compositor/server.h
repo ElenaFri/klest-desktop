@@ -17,6 +17,8 @@ enum klest_cursor_mode {
 
 struct klest_toplevel;
 
+struct klest_config;
+
 struct klest_server {
 	struct wl_display *display;
 	struct wlr_backend *backend;
@@ -55,6 +57,10 @@ struct klest_server {
 	double grab_x, grab_y;
 	struct wlr_box grab_geobox;
 	uint32_t resize_edges;
+
+	/* Runtime configuration (borrowed; owned by the caller). May be NULL,
+	 * in which case built-in defaults apply. */
+	const struct klest_config *config;
 };
 
 /* Sets up the display, backend, renderer, scene, windows and input. */

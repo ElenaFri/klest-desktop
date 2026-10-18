@@ -26,7 +26,9 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 
-/* Background colour shown on every output (RGBA, premultiplied alpha). */
+#include "config/config.h"
+
+/* Fallback background colour when no configuration is available (RGBA). */
 static const float KLEST_BACKGROUND_COLOR[4] = {0.10f, 0.11f, 0.16f, 1.0f};
 
 struct klest_output {
@@ -103,8 +105,11 @@ static void server_new_output(struct wl_listener *listener, void *data)
 	}
 	output->server = server;
 	output->wlr_output = wlr_output;
+	const float *bg = (server->config != NULL)
+		? server->config->background_color
+		: KLEST_BACKGROUND_COLOR;
 	output->background = wlr_scene_rect_create(&server->scene->tree,
-		wlr_output->width, wlr_output->height, KLEST_BACKGROUND_COLOR);
+		wlr_output->width, wlr_output->height, bg);
 
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);

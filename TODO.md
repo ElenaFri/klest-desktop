@@ -8,14 +8,14 @@
 - [ ] Compositor foundation: wlroots
 - [ ] GUI toolkit: GTK
 - [ ] Build system: Meson + Ninja
-- [ ] Configuration format: TOML
+- [x] Configuration format: TOML (tomlc17, vendored — ADR 0007)
 - [ ] Inter-module communication: Unix sockets
 
 ## Open questions to settle
 
 - [ ] wlroots scope: stay close vs. hide behind a Klest abstraction (ADR 0004)
 - [ ] Module granularity: what is inside the compositor vs. standalone (ADR 0009)
-- [ ] Configuration contract: simple defaults + advanced overrides (ADR 0007)
+- [x] Configuration contract: simple defaults + advanced overrides (ADR 0007)
 
 ## Project setup
 
@@ -30,5 +30,5 @@
 - [x] Minimal wlroots-based compositor that starts and shows an output
 - [x] Handle keyboard and mouse input
 - [x] Open, move, and close a window
-- [ ] Load configuration from a TOML file
+- [x] Load configuration from a TOML file
 - [ ] First GTK configuration tool

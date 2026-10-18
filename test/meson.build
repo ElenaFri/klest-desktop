@@ -9,3 +9,10 @@ test_version = executable(
     dependencies: klest_core_dep,
 )
 test('version', test_version)
+
+test_config = executable(
+    'test-config',
+    'test_config.c',
+    dependencies: klest_config_dep,
+)
+test('config', test_config)

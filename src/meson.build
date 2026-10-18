@@ -15,7 +15,21 @@ klest_core_dep = declare_dependency(
     include_directories: include_directories('.'),
 )
 
-klest_deps = [klest_core_dep]
+# Configuration loading (ADR 0007). Always built; it only needs the vendored
+# TOML parser, no system dependencies.
+klest_config_lib = static_library(
+    'klest-config',
+    'config/config.c',
+    include_directories: [klest_inc, include_directories('.')],
+    dependencies: tomlc17_dep,
+)
+
+klest_config_dep = declare_dependency(
+    link_with: klest_config_lib,
+    include_directories: include_directories('.'),
+)
+
+klest_deps = [klest_core_dep, klest_config_dep]
 
 if have_compositor
     # wlroots' xdg-shell headers need the generated protocol header.
@@ -35,7 +49,8 @@ if have_compositor
         xdg_shell_header,
         include_directories: [klest_inc, include_directories('.')],
         c_args: ['-DWLR_USE_UNSTABLE'],
-        dependencies: [wlroots_dep, wayland_server_dep, xkbcommon_dep],
+        dependencies: [wlroots_dep, wayland_server_dep, xkbcommon_dep,
+            klest_config_dep],
     )
     klest_compositor_dep = declare_dependency(
         link_with: klest_compositor,
