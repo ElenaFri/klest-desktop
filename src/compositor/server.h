@@ -27,6 +27,7 @@ struct klest_config;
  * count is a deliberate, documented exception. */
 struct klest_server {
 	struct wl_display *display;
+	struct wl_event_source *termination_signals[2];
 	struct wlr_backend *backend;
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;

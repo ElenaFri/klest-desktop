@@ -10,6 +10,7 @@
 
 #include "server.h"
 
+#include <signal.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -30,6 +31,24 @@
 
 /* Fallback background colour when no configuration is available (RGBA). */
 static const float KLEST_BACKGROUND_COLOR[4] = {0.10f, 0.11f, 0.16f, 1.0f};
+
+static int terminate_on_signal(int signal_number, void *data)
+{
+	(void)signal_number;
+	struct klest_server *server = data;
+	wl_display_terminate(server->display);
+	return 0;
+}
+
+static void remove_termination_signals(struct klest_server *server)
+{
+	for (size_t i = 0; i < 2; i++) {
+		if (server->termination_signals[i] != NULL) {
+			wl_event_source_remove(server->termination_signals[i]);
+			server->termination_signals[i] = NULL;
+		}
+	}
+}
 
 struct klest_output {
 	struct wl_list link; /* klest_server.outputs */
@@ -151,6 +170,15 @@ bool klest_server_init(struct klest_server *server)
 	}
 
 	struct wl_event_loop *loop = wl_display_get_event_loop(server->display);
+	server->termination_signals[0] = wl_event_loop_add_signal(loop, SIGINT,
+		terminate_on_signal, server);
+	server->termination_signals[1] = wl_event_loop_add_signal(loop, SIGTERM,
+		terminate_on_signal, server);
+	if (server->termination_signals[0] == NULL ||
+			server->termination_signals[1] == NULL) {
+		wlr_log(WLR_ERROR, "failed to register termination signals");
+		goto error_display;
+	}
 
 	server->backend = wlr_backend_autocreate(loop, NULL);
 	if (server->backend == NULL) {
@@ -194,6 +222,7 @@ bool klest_server_init(struct klest_server *server)
 	return true;
 
 error_display:
+	remove_termination_signals(server);
 	if (server->allocator != NULL) {
 		wlr_allocator_destroy(server->allocator);
 		server->allocator = NULL;
@@ -236,6 +265,7 @@ void klest_server_finish(struct klest_server *server)
 	if (server->display == NULL) {
 		return;
 	}
+	remove_termination_signals(server);
 	wl_display_destroy_clients(server->display);
 
 	wlr_scene_node_destroy(&server->scene->tree.node);

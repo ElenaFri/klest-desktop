@@ -1,6 +1,6 @@
 # Klest
 
-_**A lean, adaptable Wayland desktop environment in C, built to adapt and thriving through simplicity.**_
+_**A lean Wayland desktop environment in C, built to adapt and thriving through simplicity.**_
 
 <img src="logo.png" alt="Klest's logo" width="200">
 

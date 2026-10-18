@@ -29,6 +29,7 @@ add_project_arguments(
 # build and tests still work; only the compositor is skipped.
 wlroots_dep = dependency('wlroots-0.18', required: get_option('compositor'))
 wayland_server_dep = dependency('wayland-server', required: get_option('compositor'))
+wayland_client_dep = dependency('wayland-client', required: false)
 wayland_protocols_dep = dependency('wayland-protocols', required: get_option('compositor'))
 xkbcommon_dep = dependency('xkbcommon', required: get_option('compositor'))
 wayland_scanner = find_program('wayland-scanner', required: get_option('compositor'))
