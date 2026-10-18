@@ -52,7 +52,8 @@ static void process_cursor_motion(struct klest_server *server, uint32_t time)
 		return;
 	}
 
-	double sx, sy;
+	double sx;
+	double sy;
 	struct wlr_surface *surface = NULL;
 	struct klest_toplevel *toplevel = klest_toplevel_at(server,
 		server->cursor->x, server->cursor->y, &surface, &sx, &sy);
@@ -104,7 +105,8 @@ static void cursor_button(struct wl_listener *listener, void *data)
 		return;
 	}
 
-	double sx, sy;
+	double sx;
+	double sy;
 	struct wlr_surface *surface = NULL;
 	struct klest_toplevel *toplevel = klest_toplevel_at(server,
 		server->cursor->x, server->cursor->y, &surface, &sx, &sy);
@@ -241,7 +243,8 @@ static void server_new_keyboard(struct klest_server *server,
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
 
-	int32_t rate = 25, delay = 600;
+	int32_t rate = 25;
+	int32_t delay = 600;
 	if (server->config != NULL) {
 		rate = server->config->keyboard_repeat_rate;
 		delay = server->config->keyboard_repeat_delay;

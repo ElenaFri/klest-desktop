@@ -60,7 +60,8 @@ struct klest_server {
 	/* Interactive move/resize grab state. */
 	enum klest_cursor_mode cursor_mode;
 	struct klest_toplevel *grabbed_toplevel;
-	double grab_x, grab_y;
+	double grab_x;
+	double grab_y;
 	struct wlr_box grab_geobox;
 	uint32_t resize_edges;
 

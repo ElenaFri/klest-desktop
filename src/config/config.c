@@ -240,12 +240,12 @@ static bool mkdir_p(const char *dir)
 			continue;
 		}
 		*p = '\0';
-		if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+		if (mkdir(tmp, 0700) != 0 && errno != EEXIST) {
 			return false;
 		}
 		*p = '/';
 	}
-	return mkdir(tmp, 0755) == 0 || errno == EEXIST;
+	return mkdir(tmp, 0700) == 0 || errno == EEXIST;
 }
 
 /* Ensures the directory containing `path` exists. */
