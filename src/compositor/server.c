@@ -84,7 +84,10 @@ static void server_new_output(struct wl_listener *listener, void *data)
 	struct klest_server *server = wl_container_of(listener, server, new_output);
 	struct wlr_output *wlr_output = data;
 
-	wlr_output_init_render(wlr_output, server->allocator, server->renderer);
+	if (!wlr_output_init_render(wlr_output, server->allocator, server->renderer)) {
+		wlr_log(WLR_ERROR, "failed to initialize output rendering");
+		return;
+	}
 
 	struct wlr_output_state state;
 	wlr_output_state_init(&state);
@@ -95,8 +98,12 @@ static void server_new_output(struct wl_listener *listener, void *data)
 		wlr_output_state_set_mode(&state, mode);
 	}
 
-	wlr_output_commit_state(wlr_output, &state);
+	bool committed = wlr_output_commit_state(wlr_output, &state);
 	wlr_output_state_finish(&state);
+	if (!committed) {
+		wlr_log(WLR_ERROR, "failed to enable output");
+		return;
+	}
 
 	struct klest_output *output = calloc(1, sizeof(*output));
 	if (output == NULL) {
@@ -110,6 +117,11 @@ static void server_new_output(struct wl_listener *listener, void *data)
 		: KLEST_BACKGROUND_COLOR;
 	output->background = wlr_scene_rect_create(&server->scene->tree,
 		wlr_output->width, wlr_output->height, bg);
+	if (output->background == NULL) {
+		wlr_log(WLR_ERROR, "failed to create output background");
+		free(output);
+		return;
+	}
 
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);
@@ -151,7 +163,10 @@ bool klest_server_init(struct klest_server *server)
 		wlr_log(WLR_ERROR, "failed to create renderer");
 		goto error_display;
 	}
-	wlr_renderer_init_wl_display(server->renderer, server->display);
+	if (!wlr_renderer_init_wl_display(server->renderer, server->display)) {
+		wlr_log(WLR_ERROR, "failed to initialize renderer for Wayland display");
+		goto error_display;
+	}
 
 	server->allocator = wlr_allocator_autocreate(server->backend, server->renderer);
 	if (server->allocator == NULL) {
@@ -179,6 +194,18 @@ bool klest_server_init(struct klest_server *server)
 	return true;
 
 error_display:
+	if (server->allocator != NULL) {
+		wlr_allocator_destroy(server->allocator);
+		server->allocator = NULL;
+	}
+	if (server->renderer != NULL) {
+		wlr_renderer_destroy(server->renderer);
+		server->renderer = NULL;
+	}
+	if (server->backend != NULL) {
+		wlr_backend_destroy(server->backend);
+		server->backend = NULL;
+	}
 	wl_display_destroy(server->display);
 	server->display = NULL;
 	return false;

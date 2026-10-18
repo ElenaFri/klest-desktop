@@ -22,7 +22,8 @@
 - [x] Set up Meson + Ninja build skeleton
 - [x] Configure strict warnings (`-Wall -Wextra`) and sanitizers (ASan/UBSan)
 - [x] Set up CI (GitHub Actions: build + test)
-- [x] Add unit + integration test harness
+- [x] Add unit test harness
+- [ ] Add compositor integration tests (headless startup and window lifecycle)
 - [x] Document the Debian build/run requirements
 
 ## First milestones

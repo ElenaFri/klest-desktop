@@ -237,11 +237,27 @@ static void server_new_keyboard(struct klest_server *server,
 	keyboard->wlr_keyboard = wlr_keyboard;
 
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	if (context == NULL) {
+		wlr_log(WLR_ERROR, "failed to create XKB context");
+		free(keyboard);
+		return;
+	}
 	struct xkb_keymap *keymap = xkb_keymap_new_from_names(context, NULL,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
-	wlr_keyboard_set_keymap(wlr_keyboard, keymap);
+	if (keymap == NULL) {
+		wlr_log(WLR_ERROR, "failed to create XKB keymap");
+		xkb_context_unref(context);
+		free(keyboard);
+		return;
+	}
+	bool keymap_set = wlr_keyboard_set_keymap(wlr_keyboard, keymap);
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
+	if (!keymap_set) {
+		wlr_log(WLR_ERROR, "failed to set keyboard keymap");
+		free(keyboard);
+		return;
+	}
 
 	int32_t rate = 25;
 	int32_t delay = 600;
