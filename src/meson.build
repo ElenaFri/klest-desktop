@@ -66,3 +66,14 @@ executable(
     dependencies: klest_deps,
     install: true,
 )
+
+# GTK configuration tool (ADR 0005). Linked against GTK only here.
+if have_settings
+    executable(
+        'klest-settings',
+        'tools/klest-settings.c',
+        include_directories: [klest_inc, include_directories('.')],
+        dependencies: [klest_config_dep, gtk4_dep],
+        install: true,
+    )
+endif

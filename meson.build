@@ -36,6 +36,11 @@ have_compositor = wlroots_dep.found() and wayland_server_dep.found() \
     and wayland_protocols_dep.found() and xkbcommon_dep.found() \
     and wayland_scanner.found()
 
+# Optional GTK configuration tool (ADR 0005). GTK is only ever linked into the
+# tools, never the compositor, keeping the core lean.
+gtk4_dep = dependency('gtk4', required: get_option('settings'))
+have_settings = gtk4_dep.found()
+
 # Compile-time configuration (version, feature flags), exposed as <config.h>.
 conf_data = configuration_data()
 conf_data.set_quoted('KLEST_VERSION', meson.project_version())
@@ -53,3 +58,4 @@ subdir('src')
 subdir('test')
 
 summary({'compositor': have_compositor}, section: 'Features')
+summary({'settings (GTK tool)': have_settings}, section: 'Features')

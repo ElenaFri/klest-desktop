@@ -19,6 +19,12 @@ struct klest_toplevel;
 
 struct klest_config;
 
+/* Central compositor state. This struct is intentionally wide: it mirrors the
+ * canonical wlroots compositor layout (cf. tinywl), where the server owns the
+ * display, backend, renderer, scene, seat and the many wl_listener members that
+ * wlroots drives via wl_container_of(). Splitting it into sub-structs would
+ * break that offsetof-based dispatch for little real benefit, so the field
+ * count is a deliberate, documented exception. */
 struct klest_server {
 	struct wl_display *display;
 	struct wlr_backend *backend;

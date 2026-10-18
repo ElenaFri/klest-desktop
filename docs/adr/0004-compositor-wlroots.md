@@ -1,6 +1,6 @@
 # 0004 — Compositor foundation: wlroots
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 

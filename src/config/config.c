@@ -11,9 +11,11 @@
 #include "config/config.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "tomlc17.h"
@@ -77,6 +79,32 @@ bool klest_config_parse_color(const char *hex, float out[4])
 
 	memcpy(out, rgba, sizeof(rgba));
 	return true;
+}
+
+static int to_byte(float v)
+{
+	if (v < 0.0f) {
+		v = 0.0f;
+	} else if (v > 1.0f) {
+		v = 1.0f;
+	}
+	return (int)(v * 255.0f + 0.5f);
+}
+
+bool klest_config_format_color(const float rgba[4], char *buf, size_t cap)
+{
+	int r = to_byte(rgba[0]);
+	int g = to_byte(rgba[1]);
+	int b = to_byte(rgba[2]);
+	int a = to_byte(rgba[3]);
+
+	int n;
+	if (a >= 255) {
+		n = snprintf(buf, cap, "#%02x%02x%02x", r, g, b);
+	} else {
+		n = snprintf(buf, cap, "#%02x%02x%02x%02x", r, g, b, a);
+	}
+	return n > 0 && (size_t)n < cap;
 }
 
 bool klest_config_default_path(char *buf, size_t cap)
@@ -197,4 +225,106 @@ bool klest_config_load(struct klest_config *cfg, const char *path)
 
 	toml_free(result);
 	return true;
+}
+
+/* Creates `dir` and all missing parents, like `mkdir -p`. */
+static bool mkdir_p(const char *dir)
+{
+	char tmp[4096];
+	int n = snprintf(tmp, sizeof(tmp), "%s", dir);
+	if (n < 0 || (size_t)n >= sizeof(tmp)) {
+		return false;
+	}
+	for (char *p = tmp + 1; *p != '\0'; p++) {
+		if (*p != '/') {
+			continue;
+		}
+		*p = '\0';
+		if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+			return false;
+		}
+		*p = '/';
+	}
+	return mkdir(tmp, 0755) == 0 || errno == EEXIST;
+}
+
+/* Ensures the directory containing `path` exists. */
+static bool ensure_parent_dir(const char *path)
+{
+	const char *slash = strrchr(path, '/');
+	if (slash == NULL || slash == path) {
+		return true; /* no directory component, or the root */
+	}
+	char dir[4096];
+	size_t len = (size_t)(slash - path);
+	if (len >= sizeof(dir)) {
+		return false;
+	}
+	memcpy(dir, path, len);
+	dir[len] = '\0';
+	return mkdir_p(dir);
+}
+
+/* Writes `value` as a TOML basic string: key = "...", with escaping. */
+static void write_toml_string(FILE *f, const char *key, const char *value)
+{
+	fprintf(f, "%s = \"", key);
+	for (const char *p = value; *p != '\0'; p++) {
+		switch (*p) {
+		case '\\': fputs("\\\\", f); break;
+		case '"':  fputs("\\\"", f); break;
+		case '\n': fputs("\\n", f); break;
+		case '\t': fputs("\\t", f); break;
+		default:   fputc(*p, f); break;
+		}
+	}
+	fputs("\"\n", f);
+}
+
+bool klest_config_save(const struct klest_config *cfg, const char *path)
+{
+	char resolved[4096];
+	if (path == NULL) {
+		if (!klest_config_default_path(resolved, sizeof(resolved))) {
+			fprintf(stderr, "klest: config: cannot determine a config path\n");
+			return false;
+		}
+		path = resolved;
+	}
+
+	if (!ensure_parent_dir(path)) {
+		fprintf(stderr, "klest: config: cannot create directory for %s: %s\n",
+			path, strerror(errno));
+		return false;
+	}
+
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		fprintf(stderr, "klest: config: cannot write %s: %s\n",
+			path, strerror(errno));
+		return false;
+	}
+
+	char color[16];
+	if (!klest_config_format_color(cfg->background_color, color, sizeof(color))) {
+		snprintf(color, sizeof(color), "#1a1c29");
+	}
+
+	fprintf(f, "# Klest configuration (written by klest-settings).\n\n");
+	fprintf(f, "[appearance]\n");
+	write_toml_string(f, "background_color", color);
+	fprintf(f, "\n[keyboard]\n");
+	fprintf(f, "repeat_rate = %d\n", cfg->keyboard_repeat_rate);
+	fprintf(f, "repeat_delay = %d\n", cfg->keyboard_repeat_delay);
+	fprintf(f, "\n[keybindings]\n");
+	write_toml_string(f, "terminal", cfg->terminal);
+
+	bool ok = ferror(f) == 0;
+	if (fclose(f) != 0) {
+		ok = false;
+	}
+	if (!ok) {
+		fprintf(stderr, "klest: config: error writing %s\n", path);
+	}
+	return ok;
 }

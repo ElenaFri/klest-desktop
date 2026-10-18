@@ -99,6 +99,18 @@ WAYLAND_DISPLAY=wayland-0 foot
 Client windows can also be moved and resized interactively when the application
 requests it (e.g. dragging a title bar).
 
+## Configuration
+
+Klest reads `~/.config/klest/config.toml` (override with `$KLEST_CONFIG`). Every
+key is optional — see [`examples/config.toml`](examples/config.toml) for the full
+schema and defaults.
+
+You can edit it by hand, or use the GTK tool (built when GTK 4 is available):
+
+```sh
+./build/src/klest-settings
+```
+
 ## Testing in a VM (QEMU)
 
 A VM is useful for testing a full session in isolation, on a clean Debian, without risking your working machine. For day-to-day development, prefer **nested** mode (above); for CI, prefer the **headless** backend (`WLR_BACKENDS=headless WLR_RENDERER=pixman`).

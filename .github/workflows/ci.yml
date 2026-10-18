@@ -24,7 +24,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential meson ninja-build pkg-config git ca-certificates \
             libwlroots-0.18-dev libwayland-dev libwayland-bin wayland-protocols \
-            libxkbcommon-dev
+            libxkbcommon-dev libgtk-4-dev
 
       - uses: actions/checkout@v4
 

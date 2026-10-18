@@ -49,4 +49,17 @@ bool klest_config_default_path(char *buf, size_t cap);
  */
 bool klest_config_parse_color(const char *hex, float out[4]);
 
+/*
+ * Formats an RGBA colour (0..1) into `buf` as "#rrggbb", or "#rrggbbaa" when the
+ * alpha channel is not fully opaque. `cap` must be at least 10. Returns false if
+ * `buf` is too small.
+ */
+bool klest_config_format_color(const float rgba[4], char *buf, size_t cap);
+
+/*
+ * Writes `cfg` to a TOML file at `path` (or the default location when `path` is
+ * NULL), creating parent directories as needed. Returns false on error.
+ */
+bool klest_config_save(const struct klest_config *cfg, const char *path);
+
 #endif /* KLEST_CONFIG_CONFIG_H */

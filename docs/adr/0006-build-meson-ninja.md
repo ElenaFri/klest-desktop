@@ -1,6 +1,6 @@
 # 0006 — Build system: Meson + Ninja
 
-**Status:** Proposed
+**Status:** Accepted
 
 ## Context
 

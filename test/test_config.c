@@ -40,6 +40,47 @@ static void test_parse_color(void)
 	assert(!klest_config_parse_color(NULL, c));
 }
 
+static void test_format_color(void)
+{
+	char buf[16];
+	float opaque[4] = {1.0f, 0.533f, 0.0f, 1.0f};
+	assert(klest_config_format_color(opaque, buf, sizeof(buf)));
+	assert(strcmp(buf, "#ff8800") == 0);
+
+	float translucent[4] = {0.0f, 0.0f, 0.0f, 0.5f};
+	assert(klest_config_format_color(translucent, buf, sizeof(buf)));
+	assert(strcmp(buf, "#00000080") == 0);
+
+	assert(!klest_config_format_color(opaque, buf, 4)); /* too small */
+}
+
+static void test_save_round_trip(void)
+{
+	const char *path = "klest-test-roundtrip.toml";
+
+	struct klest_config out;
+	klest_config_set_defaults(&out);
+	out.keyboard_repeat_rate = 33;
+	out.keyboard_repeat_delay = 275;
+	out.background_color[0] = 1.0f;
+	out.background_color[1] = 0.0f;
+	out.background_color[2] = 0.5f;
+	snprintf(out.terminal, sizeof(out.terminal), "foot -e \"tmux\"");
+
+	assert(klest_config_save(&out, path));
+
+	struct klest_config in;
+	bool ok = klest_config_load(&in, path);
+	remove(path);
+
+	assert(ok);
+	assert(in.keyboard_repeat_rate == 33);
+	assert(in.keyboard_repeat_delay == 275);
+	assert(near(in.background_color[0], 1.0f));
+	assert(near(in.background_color[2], 0.5f));
+	assert(strcmp(in.terminal, "foot -e \"tmux\"") == 0); /* quotes survive escaping */
+}
+
 static void test_missing_file_keeps_defaults(void)
 {
 	struct klest_config cfg;
@@ -95,6 +136,8 @@ int main(void)
 {
 	test_defaults();
 	test_parse_color();
+	test_format_color();
+	test_save_round_trip();
 	test_missing_file_keeps_defaults();
 	test_overlay_from_file();
 	test_parse_error_returns_false();

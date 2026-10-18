@@ -5,9 +5,9 @@
 - [x] Language: C (C17)
 - [x] Display protocol: Wayland
 - [x] Initial target: Debian
-- [ ] Compositor foundation: wlroots
-- [ ] GUI toolkit: GTK
-- [ ] Build system: Meson + Ninja
+- [x] Compositor foundation: wlroots
+- [x] GUI toolkit: GTK
+- [x] Build system: Meson + Ninja
 - [x] Configuration format: TOML (tomlc17, vendored — ADR 0007)
 - [ ] Inter-module communication: Unix sockets
 
@@ -23,7 +23,7 @@
 - [x] Configure strict warnings (`-Wall -Wextra`) and sanitizers (ASan/UBSan)
 - [x] Set up CI (GitHub Actions: build + test)
 - [x] Add unit + integration test harness
-- [ ] Document the Debian build/run requirements
+- [x] Document the Debian build/run requirements
 
 ## First milestones
 
@@ -31,4 +31,4 @@
 - [x] Handle keyboard and mouse input
 - [x] Open, move, and close a window
 - [x] Load configuration from a TOML file
-- [ ] First GTK configuration tool
+- [x] First GTK configuration tool (`klest-settings`)
