@@ -1,8 +1,9 @@
 # Installing & running Klest
 
-> **Early development.** Klest currently builds a minimal compositor that brings
-> up outputs with a background (see [TODO.md](TODO.md)); window management and
-> input are not implemented yet. The procedure below targets Debian (ADR 0003).
+> **Early development.** Klest currently builds a usable minimal compositor:
+> it brings up outputs, runs xdg-shell client windows, and handles keyboard and
+> pointer input, including interactive move/resize (see [TODO.md](TODO.md)).
+> The procedure below targets Debian (ADR 0003).
 
 ## Requirements
 
@@ -15,8 +16,9 @@ sudo apt install \
     meson ninja-build \
     pkg-config \
     libwlroots-0.18-dev \
-    libwayland-dev \
+    libwayland-dev libwayland-bin \
     wayland-protocols \
+    libxkbcommon-dev \
     libgtk-4-dev
 ```
 
@@ -26,6 +28,8 @@ sudo apt install \
   **version-specific**; if `0.18` is unavailable, find the right one with
   `apt-cache search wlroots`.
 - `libwayland-dev`, `wayland-protocols` — Wayland support (ADR 0002)
+- `libwayland-bin` — provides `wayland-scanner`, used to generate protocol headers
+- `libxkbcommon-dev` — keyboard keymaps
 - `libgtk-4-dev` — GUI tools (ADR 0005)
 
 ## Build
@@ -57,29 +61,42 @@ Klest is a Wayland compositor. You can run it two ways:
 - **From a TTY**, as a standalone session: switch to a free virtual terminal
   (e.g. `Ctrl+Alt+F3`), log in, then run the same command.
 
+Once running, launch a Wayland client to get a window, for example:
+
+```sh
+foot          # or weston-terminal, or any Wayland app
+```
+
+### Keybindings
+
+| Shortcut            | Action                        |
+| ------------------- | ----------------------------- |
+| `Alt` + `Escape`    | Quit Klest                    |
+| `Alt` + `F1`        | Cycle focus between windows    |
+| `Alt` + left-drag   | Move the window under the cursor (client-initiated) |
+
+Client windows can also be moved and resized interactively when the application
+requests it (e.g. dragging a title bar).
+
 ## Testing in a VM (QEMU)
 
 A VM is useful for testing a full session in isolation, on a clean Debian, without risking your working machine. For day-to-day development, prefer **nested** mode (above); for CI, prefer the **headless** backend (`WLR_BACKENDS=headless WLR_RENDERER=pixman`).
 
 ### Create the Debian image
 
-First create an empty virtual disk, then install Debian into it from the netinst ISO (download it from <https://www.debian.org/distrib/>):
+Download Debian's prebuilt cloud image, grow it, and set a root password:
 
 ```sh
-# 1. Create a 20 GB disk image
-qemu-img create -f qcow2 klest-debian.qcow2 20G
-
-# 2. Boot the installer once, with the ISO attached
-qemu-system-x86_64 \
-    -enable-kvm \
-    -m 4096 \
-    -smp 2 \
-    -drive file=klest-debian.qcow2,if=virtio \
-    -cdrom debian-netinst.iso \
-    -boot d
+wget -O klest-debian.qcow2 https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
+qemu-img resize klest-debian.qcow2 20G
+sudo virt-customize -a klest-debian.qcow2 \
+    --root-password password:klest \
+    --run-command 'printf "[Match]\nName=en*\n\n[Network]\nDHCP=yes\n" > /etc/systemd/network/20-dhcp.network' \
+    --run-command 'systemctl enable systemd-networkd'
 ```
 
-Follow the Debian installer, then shut the guest down. From now on, boot from the disk (without `-cdrom`/`-boot d`) using the launch command below.
+Boot it with the launch command below and log in as `root` / `klest`; networking
+comes up automatically via DHCP.
 
 ### Launch the VM
 
@@ -94,15 +111,64 @@ qemu-system-x86_64 \
     -display gtk,gl=on \
     -device virtio-keyboard-pci \
     -device virtio-tablet-pci \
+    -nic user,model=virtio-net-pci \
     -drive file=klest-debian.qcow2,if=virtio
 ```
 
 - `-vga virtio` + `-display gtk,gl=on` — virtio-gpu with host GL, so rendering
   is reasonable; without `gl=on`, Klest falls back to software rendering
   (`WLR_RENDERER=pixman`).
+- `-nic user,model=virtio-net-pci` — NAT networking, so the guest has internet
+  (needed for `apt install`) with no host setup.
 - `-device virtio-tablet-pci` — gives absolute pointer positioning, which makes
   the mouse usable inside the guest window.
 - `-enable-kvm` — hardware acceleration (Linux host); drop it if unavailable.
+
+### Working over SSH (so copy-paste works)
+
+To paste commands into the guest, work over SSH from your host terminal. Add an
+SSH port forward to the NIC:
+
+```sh
+    -nic user,model=virtio-net-pci,hostfwd=tcp::2222-:22 \
+```
+
+Then, inside the guest, install the SSH server:
+
+```sh
+apt install -y openssh-server
+```
+
+Cloud images often ship without SSH host keys, which makes the service fail to
+start. Generate them:
+
+```sh
+ssh-keygen -A
+```
+
+Allow root login by editing the config (no copy-paste needed yet):
+
+```sh
+vim /etc/ssh/sshd_config
+```
+
+Find the `PermitRootLogin` line and make it read exactly:
+
+```
+PermitRootLogin yes
+```
+
+Save and restart the server:
+
+```sh
+systemctl restart ssh
+```
+
+From the host, connect with your normal terminal (clipboard works as usual):
+
+```sh
+ssh -p 2222 root@localhost
+```
 
 Inside the guest, install the requirements above, then launch Klest from a TTY:
 
