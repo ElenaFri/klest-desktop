@@ -1,4 +1,4 @@
-/* Shared Wayland SHM buffer allocation for Klest clients and tests. */
+/* Shared Wayland SHM buffer allocation for Klest clients. */
 #define _POSIX_C_SOURCE 200809L
 
 #include "wayland/shm.h"
@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -23,16 +24,10 @@ static bool valid_dimensions(uint32_t width, uint32_t height,
 	return true;
 }
 
-struct wl_buffer *klest_shm_buffer_create(struct wl_shm *shm,
-	uint32_t width, uint32_t height, uint32_t pixel)
+static struct wl_buffer *create_buffer(struct wl_shm *shm,
+	uint32_t width, uint32_t height, int32_t stride, int32_t size,
+	const void *pixels, int32_t source_stride, uint32_t fill_pixel)
 {
-	int32_t stride;
-	int32_t size;
-	if (shm == NULL || !valid_dimensions(width, height, &stride, &size)) {
-		fprintf(stderr, "klest: invalid shared-memory buffer dimensions\n");
-		return NULL;
-	}
-
 	const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
 	if (runtime_dir == NULL || runtime_dir[0] == '\0') {
 		fprintf(stderr, "klest: XDG_RUNTIME_DIR is unset\n");
@@ -65,10 +60,19 @@ struct wl_buffer *klest_shm_buffer_create(struct wl_shm *shm,
 		close(fd);
 		return NULL;
 	}
-	uint32_t *pixels = memory;
-	size_t count = (size_t)width * (size_t)height;
-	for (size_t i = 0; i < count; i++) {
-		pixels[i] = pixel;
+	if (pixels == NULL) {
+		uint32_t *target = memory;
+		size_t count = (size_t)width * (size_t)height;
+		for (size_t i = 0; i < count; i++) {
+			target[i] = fill_pixel;
+		}
+	} else {
+		char *target = memory;
+		const char *source = pixels;
+		for (uint32_t row = 0; row < height; row++) {
+			memcpy(target + (size_t)row * (size_t)stride,
+				source + (size_t)row * (size_t)source_stride, (size_t)stride);
+		}
 	}
 	if (munmap(memory, (size_t)size) != 0) {
 		perror("klest: munmap");
@@ -85,4 +89,39 @@ struct wl_buffer *klest_shm_buffer_create(struct wl_shm *shm,
 		(int32_t)width, (int32_t)height, stride, WL_SHM_FORMAT_ARGB8888);
 	wl_shm_pool_destroy(pool);
 	return buffer;
+}
+
+static struct wl_buffer *create_solid_buffer(struct wl_shm *shm,
+	uint32_t width, uint32_t height, uint32_t pixel)
+{
+	int32_t stride;
+	int32_t size;
+	if (shm == NULL || !valid_dimensions(width, height, &stride, &size)) {
+		fprintf(stderr, "klest: invalid shared-memory buffer dimensions\n");
+		return NULL;
+	}
+	return create_buffer(shm, width, height, stride, size, NULL, 0, pixel);
+}
+
+struct wl_buffer *klest_shm_buffer_create(struct wl_shm *shm,
+	uint32_t width, uint32_t height, uint32_t pixel)
+{
+	return create_solid_buffer(shm, width, height, pixel);
+}
+
+struct wl_buffer *klest_shm_buffer_create_from_data(struct wl_shm *shm,
+	uint32_t width, uint32_t height, int32_t source_stride,
+	const void *pixels)
+{
+	int32_t stride;
+	int32_t size;
+	if (shm == NULL || pixels == NULL ||
+			!valid_dimensions(width, height, &stride, &size) ||
+			source_stride < stride ||
+			(size_t)source_stride > SIZE_MAX / (size_t)height) {
+		fprintf(stderr, "klest: invalid shared-memory image data\n");
+		return NULL;
+	}
+	return create_buffer(shm, width, height, stride, size, pixels,
+		source_stride, 0);
 }

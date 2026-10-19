@@ -41,11 +41,12 @@ meson setup build
 ninja -C build
 ```
 
-For a debug build with strict warnings and sanitizers (ADR 0006):
+For a separate debug build with ASan/UBSan (ADR 0006):
 
 ```sh
-meson setup build --buildtype=debug -Db_sanitize=address,undefined
-ninja -C build
+meson setup build-asan --buildtype=debug -Db_sanitize=address,undefined
+ninja -C build-asan
+meson test -C build-asan
 ```
 
 ## Run
@@ -62,8 +63,9 @@ Klest is a Wayland compositor. You can run it two ways:
   (e.g. `Ctrl+Alt+F3`), log in, then run the same command.
 
 Without desktop components, the compositor output is blank except for the cursor.
-To start the standalone background client, open another terminal in the same
-session and run:
+Components are not started automatically yet. From another terminal (or VT) for
+the same user, use the `WAYLAND_DISPLAY` name printed by Klest; examples below
+assume `wayland-0`:
 
 ```sh
 WAYLAND_DISPLAY=wayland-0 ./build/src/klest-background
@@ -71,10 +73,14 @@ WAYLAND_DISPLAY=wayland-0 ./build/src/klest-background
 
 It fills the output with `[appearance].background_color` from the Klest TOML
 configuration. This first version supports a solid colour, not wallpaper images.
-There is not yet a session manager to start it automatically.
+Start the clock panel from another terminal or VT with:
 
-To get a window you need a **Wayland-native** terminal (Klest has no XWayland, so
-X11-only apps won't show). Install one, e.g.:
+```sh
+WAYLAND_DISPLAY=wayland-0 ./build/src/klest-panel
+```
+
+Workspaces are not shown yet. To get a window you need a **Wayland-native**
+terminal (Klest has no XWayland, so X11-only apps won't show). Install one, e.g.:
 
 ```sh
 sudo apt install foot
@@ -91,7 +97,7 @@ vim ~/.config/klest/config.toml
 Change `terminal = ""` to `terminal = "foot"` and save the file.
 
 Alternatively, launch any Wayland client from another terminal, pointing it at
-Klest's socket (printed on startup, usually `wayland-0`):
+Klest's socket:
 
 ```sh
 WAYLAND_DISPLAY=wayland-0 foot
@@ -128,7 +134,7 @@ A Debian 13 VM provides an isolated full-session test. If `klest-debian.qcow2` a
 ### Create and start the VM (host)
 
 ```sh
-sudo apt install qemu-system-x86 qemu-utils libguestfs-tools
+sudo apt install qemu-system-x86 qemu-system-gui qemu-utils libguestfs-tools
 wget -O klest-debian.qcow2 https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
 qemu-img resize klest-debian.qcow2 20G
 sudo virt-customize -a klest-debian.qcow2 \
@@ -188,7 +194,7 @@ Then run `sshd -t && systemctl enable --now ssh`. From the host, connect with `s
 From the project root on the host, copy the source:
 
 ```sh
-tar --exclude=build --exclude=.git --exclude=.cache --exclude='*.qcow2' -czf /tmp/klest.tar.gz .
+tar --exclude=build --exclude='build-*' --exclude=.git --exclude=.cache --exclude='*.qcow2' -czf /tmp/klest.tar.gz .
 scp -P 2222 /tmp/klest.tar.gz root@localhost:/root/
 ```
 

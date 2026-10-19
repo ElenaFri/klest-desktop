@@ -41,7 +41,8 @@ that anchors to the screen through layer-shell.
 
 - [x] Compositor: implement `wlr-layer-shell-unstable-v1` (+ headless test)
 - [x] `klest-background` — standalone solid-colour layer-shell client (image loading remains future work)
-- [ ] `klest-panel` — bar (workspaces, clock)
+- [x] `klest-panel` — top bar with clock
+- [ ] Workspace model and controls in the compositor and panel
 - [ ] `klest-launcher` — application launcher
 - [ ] Notifications daemon
 - [ ] Session startup: launch the compositor and its components together

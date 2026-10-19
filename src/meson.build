@@ -70,33 +70,53 @@ if have_compositor
 
     if wayland_client_dep.found()
         layer_shell_client_header = custom_target(
-            'background-layer-shell-client-protocol.h',
+            'wlr-layer-shell-unstable-v1-client-protocol.h',
             input: wlr_layer_shell_xml,
-            output: 'background-layer-shell-client-protocol.h',
+            output: 'wlr-layer-shell-unstable-v1-client-protocol.h',
             command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
         )
         layer_shell_client_code = custom_target(
-            'background-layer-shell-protocol.c',
+            'wlr-layer-shell-unstable-v1-client-protocol.c',
             input: wlr_layer_shell_xml,
-            output: 'background-layer-shell-protocol.c',
+            output: 'wlr-layer-shell-unstable-v1-client-protocol.c',
             command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
         )
         xdg_shell_client_code = custom_target(
-            'background-xdg-shell-protocol.c',
+            'wayland-xdg-shell-client-protocol.c',
             input: wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
-            output: 'background-xdg-shell-protocol.c',
+            output: 'wayland-xdg-shell-client-protocol.c',
             command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
         )
 
-        executable(
-            'klest-background',
-            'components/klest-background.c',
+        klest_wayland_client = static_library(
+            'klest-wayland-client',
+            'wayland/layer_client.c',
             'wayland/shm.c',
             layer_shell_client_header,
             layer_shell_client_code,
             xdg_shell_client_code,
             include_directories: [klest_inc, include_directories('.')],
-            dependencies: [klest_config_dep, wayland_client_dep],
+            dependencies: wayland_client_dep,
+        )
+        klest_wayland_client_dep = declare_dependency(
+            link_with: klest_wayland_client,
+            include_directories: include_directories('.'),
+            dependencies: wayland_client_dep,
+        )
+
+        executable(
+            'klest-background',
+            'components/klest-background.c',
+            include_directories: [klest_inc, include_directories('.')],
+            dependencies: [klest_config_dep, klest_wayland_client_dep],
+            install: true,
+        )
+
+        executable(
+            'klest-panel',
+            'components/klest-panel.c',
+            include_directories: [klest_inc, include_directories('.')],
+            dependencies: klest_wayland_client_dep,
             install: true,
         )
     endif
