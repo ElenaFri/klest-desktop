@@ -40,6 +40,7 @@ have_compositor = wlroots_dep.found() and wayland_server_dep.found() \
 # wlr-layer-shell is a wlroots protocol, not shipped by wayland-protocols, so we
 # vendor its XML and generate the server/client glue ourselves (ADR 0009).
 wlr_layer_shell_xml = files('protocol/wlr-layer-shell-unstable-v1.xml')
+klest_workspace_xml = files('protocol/klest-workspace-v1.xml')
 
 # Optional GTK configuration tool (ADR 0005). GTK is only ever linked into the
 # tools, never the compositor, keeping the core lean.

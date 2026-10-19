@@ -24,6 +24,7 @@ Each record uses a short status:
 | 0007 | [Configuration format: TOML](0007-config-toml.md) | Proposed |
 | 0008 | [Inter-module communication](0008-ipc-unix-sockets.md) | Deferred |
 | 0009 | [Modular architecture & process boundaries](0009-modular-architecture.md) | Accepted |
+| 0010 | [Workspace model & control protocol](0010-workspace-model.md) | Accepted |
 
 ## Open questions
 

@@ -9,6 +9,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "server.h"
+#include "workspace.h"
 
 #include <signal.h>
 #include <stdlib.h>
@@ -206,10 +207,15 @@ bool klest_server_init(struct klest_server *server)
 	klest_views_init(server);
 	klest_layers_init(server);
 	klest_input_init(server);
+	if (!klest_workspaces_init(server)) {
+		wlr_log(WLR_ERROR, "failed to create workspace protocol global");
+		goto error_display;
+	}
 
 	return true;
 
 error_display:
+	klest_workspaces_finish(server);
 	remove_termination_signals(server);
 	if (server->allocator != NULL) {
 		wlr_allocator_destroy(server->allocator);
@@ -255,6 +261,7 @@ void klest_server_finish(struct klest_server *server)
 	}
 	remove_termination_signals(server);
 	wl_display_destroy_clients(server->display);
+	klest_workspaces_finish(server);
 
 	wlr_scene_node_destroy(&server->scene->tree.node);
 	wlr_xcursor_manager_destroy(server->cursor_mgr);

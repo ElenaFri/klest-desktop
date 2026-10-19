@@ -6,6 +6,7 @@
  */
 
 #include "view.h"
+#include "workspace.h"
 
 #include <stdlib.h>
 
@@ -26,7 +27,8 @@ struct klest_popup {
 
 void klest_focus_toplevel(struct klest_toplevel *toplevel)
 {
-	if (toplevel == NULL) {
+	if (toplevel == NULL ||
+			toplevel->workspace != toplevel->server->workspaces.active) {
 		return;
 	}
 
@@ -185,7 +187,12 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data)
 	(void)data;
 
 	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
-	klest_focus_toplevel(toplevel);
+	bool visible = toplevel->workspace ==
+		toplevel->server->workspaces.active;
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, visible);
+	if (visible) {
+		klest_focus_toplevel(toplevel);
+	}
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data)
@@ -275,6 +282,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data)
 	}
 	toplevel->server = server;
 	toplevel->xdg_toplevel = xdg_toplevel;
+	toplevel->workspace = server->workspaces.active;
 	toplevel->scene_tree = wlr_scene_xdg_surface_create(
 		server->toplevel_tree, xdg_toplevel->base);
 	toplevel->scene_tree->node.data = toplevel;

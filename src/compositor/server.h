@@ -22,6 +22,13 @@ struct klest_config;
 struct wlr_output;
 struct wlr_scene_tree;
 struct wlr_layer_shell_v1;
+struct wl_global;
+
+struct klest_workspace_state {
+	uint32_t active;
+	struct wl_global *global;
+	struct wl_list bindings;
+};
 
 /* A single output (monitor). Public so the layer-shell code can reserve its
  * usable area and react to the output being removed. */
@@ -73,6 +80,9 @@ struct klest_server {
 	struct wl_listener new_xdg_toplevel;
 	struct wl_listener new_xdg_popup;
 	struct wl_list toplevels; /* klest_toplevel.link, front-to-back */
+
+	/* Global workspace state and bound control-protocol clients. */
+	struct klest_workspace_state workspaces;
 
 	/* Desktop components (wlr-layer-shell): panels, backgrounds, etc. */
 	struct wlr_layer_shell_v1 *layer_shell;

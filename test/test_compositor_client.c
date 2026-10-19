@@ -12,6 +12,7 @@
 #include <wayland-client-protocol.h>
 
 #include "xdg-shell-client-protocol.h"
+#include "klest-workspace-v1-client-protocol.h"
 #include "../src/wayland/shm.h"
 
 struct test_client {
@@ -20,10 +21,13 @@ struct test_client {
 	struct wl_compositor *compositor;
 	struct wl_shm *shm;
 	struct xdg_wm_base *wm_base;
+	struct klest_workspace_manager_v1 *workspace_manager;
 	struct wl_surface *surface;
 	struct xdg_surface *xdg_surface;
 	struct xdg_toplevel *toplevel;
 	struct wl_buffer *buffer;
+	uint32_t workspace_count;
+	uint32_t active_workspace;
 	bool configured;
 };
 
@@ -74,6 +78,20 @@ static const struct xdg_toplevel_listener toplevel_listener = {
 	.close = toplevel_close,
 };
 
+static void workspace_state(void *data,
+	struct klest_workspace_manager_v1 *manager, // NOSONAR: protocol callback ABI requires this type.
+	uint32_t count, uint32_t active)
+{
+	struct test_client *client = data;
+	(void)manager;
+	client->workspace_count = count;
+	client->active_workspace = active;
+}
+
+static const struct klest_workspace_manager_v1_listener workspace_listener = {
+	.state = workspace_state,
+};
+
 static uint32_t min_version(uint32_t advertised, uint32_t supported)
 {
 	return advertised < supported ? advertised : supported;
@@ -96,6 +114,14 @@ static void registry_global(void *data, struct wl_registry *registry,
 			xdg_wm_base_add_listener(client->wm_base,
 				&wm_base_listener, client);
 		}
+	} else if (strcmp(interface,
+			klest_workspace_manager_v1_interface.name) == 0) {
+		client->workspace_manager = wl_registry_bind(registry, name,
+			&klest_workspace_manager_v1_interface, 1);
+		if (client->workspace_manager != NULL) {
+			klest_workspace_manager_v1_add_listener(
+				client->workspace_manager, &workspace_listener, client);
+		}
 	}
 }
 
@@ -116,6 +142,9 @@ static const struct wl_registry_listener registry_listener = {
 
 static void destroy_client(struct test_client *client)
 {
+	if (client->workspace_manager != NULL) {
+		klest_workspace_manager_v1_destroy(client->workspace_manager);
+	}
 	if (client->toplevel != NULL) {
 		xdg_toplevel_destroy(client->toplevel);
 	}
@@ -161,8 +190,31 @@ static bool connect_client(struct test_client *client)
 		return false;
 	}
 	if (client->compositor == NULL || client->shm == NULL ||
-			client->wm_base == NULL) {
+			client->wm_base == NULL || client->workspace_manager == NULL) {
 		fprintf(stderr, "integration client: required Wayland global missing\n");
+		return false;
+	}
+	return true;
+}
+
+/* Checks the workspace global reports a sane state and honours activate(). */
+static bool exercise_workspaces(struct test_client *client)
+{
+	if (wl_display_roundtrip(client->display) < 0) {
+		fprintf(stderr, "integration client: workspace state roundtrip failed\n");
+		return false;
+	}
+	if (client->workspace_count == 0 || client->active_workspace != 0) {
+		fprintf(stderr, "integration client: unexpected initial workspace state\n");
+		return false;
+	}
+	klest_workspace_manager_v1_activate(client->workspace_manager, 1);
+	if (wl_display_roundtrip(client->display) < 0) {
+		fprintf(stderr, "integration client: workspace activate roundtrip failed\n");
+		return false;
+	}
+	if (client->active_workspace != 1) {
+		fprintf(stderr, "integration client: activate did not switch workspace\n");
 		return false;
 	}
 	return true;
@@ -236,7 +288,8 @@ static bool exercise_toplevel(struct test_client *client)
 int main(void)
 {
 	struct test_client client = {0};
-	bool ok = connect_client(&client) && exercise_toplevel(&client);
+	bool ok = connect_client(&client) && exercise_toplevel(&client) &&
+		exercise_workspaces(&client);
 	destroy_client(&client);
 	return ok ? 0 : 1;
 }

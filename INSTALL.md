@@ -79,8 +79,10 @@ Start the clock panel from another terminal or VT with:
 WAYLAND_DISPLAY=wayland-0 ./build/src/klest-panel
 ```
 
-Workspaces are not shown yet. To get a window you need a **Wayland-native**
-terminal (Klest has no XWayland, so X11-only apps won't show). Install one, e.g.:
+The panel shows four workspace indicators; the active one is highlighted. Click
+an indicator to switch workspace (or use the keybindings below). To get a window
+you need a **Wayland-native** terminal (Klest has no XWayland, so X11-only apps
+won't show). Install one, e.g.:
 
 ```sh
 sudo apt install foot
@@ -110,6 +112,8 @@ WAYLAND_DISPLAY=wayland-0 foot
 | `Alt` + `Return`    | Launch the configured terminal |
 | `Alt` + `Escape`    | Quit Klest                    |
 | `Alt` + `F1`        | Cycle focus between windows    |
+| `Alt` + `1`…`4`      | Switch to workspace 1–4        |
+| `Alt` + `Shift` + `1`…`4` | Move the focused window to workspace 1–4 |
 | `Alt` + left-drag   | Move the window under the cursor (client-initiated) |
 
 Client windows can also be moved and resized interactively when the application

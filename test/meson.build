@@ -25,19 +25,33 @@ if have_compositor and wayland_client_dep.found()
         output: 'xdg-shell-client-protocol.h',
         command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
     )
-    xdg_shell_client_code = custom_target(
-        'xdg-shell-client-protocol.c',
-        input: xdg_shell_xml,
-        output: 'xdg-shell-client-protocol.c',
-        command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
-    )
+    	xdg_shell_client_code = custom_target(
+    		'xdg-shell-client-protocol.c',
+    		input: xdg_shell_xml,
+    		output: 'xdg-shell-client-protocol.c',
+    		command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+    	)
+    	workspace_client_header = custom_target(
+    		'klest-workspace-v1-client-protocol.h',
+    		input: klest_workspace_xml,
+    		output: 'klest-workspace-v1-client-protocol.h',
+    		command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+    	)
+    	workspace_client_code = custom_target(
+    		'klest-workspace-v1-client-protocol.c',
+    		input: klest_workspace_xml,
+    		output: 'klest-workspace-v1-client-protocol.c',
+    		command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+    	)
 
-    test_compositor_client = executable(
+    	test_compositor_client = executable(
         'test-compositor-client',
         'test_compositor_client.c',
-        '../src/wayland/shm.c',
-        xdg_shell_client_header,
-        xdg_shell_client_code,
+        		'../src/wayland/shm.c',
+        		xdg_shell_client_header,
+        		xdg_shell_client_code,
+        		workspace_client_header,
+        		workspace_client_code,
         include_directories: include_directories('../src'),
         dependencies: wayland_client_dep,
     )

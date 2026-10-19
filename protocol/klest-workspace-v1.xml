@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="klest_workspace_v1">
+  <interface name="klest_workspace_manager_v1" version="1">
+    <description summary="Klest workspace controls">
+      Exposes Klest's fixed set of workspaces to desktop components.
+    </description>
+    <request name="destroy" type="destructor">
+      <description summary="Release this workspace manager object"/>
+    </request>
+    <request name="activate">
+      <description summary="Switch to a workspace by its zero-based index"/>
+      <arg name="index" type="uint" summary="Workspace index"/>
+    </request>
+    <event name="state">
+      <description summary="Current workspace count and active index"/>
+      <arg name="count" type="uint" summary="Number of workspaces"/>
+      <arg name="active" type="uint" summary="Active zero-based workspace index"/>
+    </event>
+  </interface>
+</protocol>

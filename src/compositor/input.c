@@ -15,6 +15,7 @@
 #include <wayland-server-protocol.h>
 
 #include <wlr/backend.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_input_device.h>
@@ -22,6 +23,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 
@@ -29,6 +31,7 @@
 
 #include "server.h"
 #include "view.h"
+#include "workspace.h"
 #include "config/config.h"
 
 struct klest_keyboard {
@@ -147,6 +150,29 @@ static void spawn(const char *cmd)
 	}
 }
 
+static bool handle_workspace_key(struct klest_server *server,
+	struct wlr_keyboard *keyboard, uint32_t keycode, bool move)
+{
+	static const char *const key_names[KLEST_WORKSPACE_COUNT] = {
+		"AE01", "AE02", "AE03", "AE04",
+	};
+	const char *name = xkb_keymap_key_get_name(keyboard->keymap, keycode);
+	if (name == NULL) {
+		return false;
+	}
+	for (uint32_t i = 0; i < KLEST_WORKSPACE_COUNT; i++) {
+		if (strcmp(name, key_names[i]) == 0) {
+			if (move) {
+				klest_workspace_move_focused(server, i);
+			} else {
+				klest_workspace_activate(server, i);
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
 /* Compositor keybindings. Returns true if the key was consumed. */
 static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 {
@@ -158,13 +184,19 @@ static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 		spawn(server->config != NULL ? server->config->terminal : NULL);
 		return true;
 	case XKB_KEY_F1: {
-		/* Cycle to the next window. */
-		if (wl_list_length(&server->toplevels) < 2) {
-			return true;
+		struct wlr_surface *focused_surface =
+			server->seat->keyboard_state.focused_surface;
+		if (focused_surface != NULL) {
+			focused_surface = wlr_surface_get_root_surface(focused_surface);
 		}
-		struct klest_toplevel *next =
-			wl_container_of(server->toplevels.prev, next, link);
-		klest_focus_toplevel(next);
+		struct klest_toplevel *toplevel;
+		wl_list_for_each(toplevel, &server->toplevels, link) {
+			if (toplevel->workspace == server->workspaces.active &&
+					toplevel->xdg_toplevel->base->surface != focused_surface) {
+				klest_focus_toplevel(toplevel);
+				return true;
+			}
+		}
 		return true;
 	}
 	default:
@@ -199,6 +231,9 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data)
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 	if ((modifiers & WLR_MODIFIER_ALT) &&
 			event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+		bool move = (modifiers & WLR_MODIFIER_SHIFT) != 0;
+		handled = handle_workspace_key(server, keyboard->wlr_keyboard,
+			keycode, move);
 		for (int i = 0; i < nsyms; i++) {
 			handled = handle_keybinding(server, syms[i]) || handled;
 		}

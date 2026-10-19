@@ -42,21 +42,36 @@ if have_compositor
     )
 
     # wlroots' layer-shell header includes this generated protocol header.
-    layer_shell_header = custom_target(
-        'wlr-layer-shell-unstable-v1-protocol.h',
-        input: wlr_layer_shell_xml,
-        output: 'wlr-layer-shell-unstable-v1-protocol.h',
-        command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
-    )
+    	layer_shell_header = custom_target(
+    		'wlr-layer-shell-unstable-v1-protocol.h',
+    		input: wlr_layer_shell_xml,
+    		output: 'wlr-layer-shell-unstable-v1-protocol.h',
+    		command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
+    	)
+    	workspace_server_header = custom_target(
+    		'klest-workspace-v1-server-protocol.h',
+    		input: klest_workspace_xml,
+    		output: 'klest-workspace-v1-server-protocol.h',
+    		command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
+    	)
+    	workspace_server_code = custom_target(
+    		'klest-workspace-v1-server-protocol.c',
+    		input: klest_workspace_xml,
+    		output: 'klest-workspace-v1-server-protocol.c',
+    		command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+    	)
 
-    klest_compositor = static_library(
+    	klest_compositor = static_library(
         'klest-compositor',
         'compositor/server.c',
         'compositor/view.c',
         'compositor/input.c',
-        'compositor/layer.c',
-        xdg_shell_header,
-        layer_shell_header,
+        		'compositor/layer.c',
+        		'compositor/workspace.c',
+        		xdg_shell_header,
+        		layer_shell_header,
+        		workspace_server_header,
+        		workspace_server_code,
         include_directories: [klest_inc, include_directories('.')],
         c_args: ['-DWLR_USE_UNSTABLE'],
         dependencies: [wlroots_dep, wayland_server_dep, xkbcommon_dep,
@@ -81,20 +96,34 @@ if have_compositor
             output: 'wlr-layer-shell-unstable-v1-client-protocol.c',
             command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
         )
-        xdg_shell_client_code = custom_target(
-            'wayland-xdg-shell-client-protocol.c',
-            input: wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
-            output: 'wayland-xdg-shell-client-protocol.c',
-            command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
-        )
+        		xdg_shell_client_code = custom_target(
+        			'wayland-xdg-shell-client-protocol.c',
+        			input: wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
+        			output: 'wayland-xdg-shell-client-protocol.c',
+        			command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+        		)
+        		workspace_client_header = custom_target(
+        			'klest-workspace-v1-client-protocol.h',
+        			input: klest_workspace_xml,
+        			output: 'klest-workspace-v1-client-protocol.h',
+        			command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+        		)
+        		workspace_client_code = custom_target(
+        			'klest-workspace-v1-client-protocol.c',
+        			input: klest_workspace_xml,
+        			output: 'klest-workspace-v1-client-protocol.c',
+        			command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+        		)
 
-        klest_wayland_client = static_library(
+        		klest_wayland_client = static_library(
             'klest-wayland-client',
             'wayland/layer_client.c',
             'wayland/shm.c',
-            layer_shell_client_header,
-            layer_shell_client_code,
-            xdg_shell_client_code,
+            			layer_shell_client_header,
+            			layer_shell_client_code,
+            			xdg_shell_client_code,
+            			workspace_client_header,
+            			workspace_client_code,
             include_directories: [klest_inc, include_directories('.')],
             dependencies: wayland_client_dep,
         )
