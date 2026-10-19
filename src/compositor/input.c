@@ -156,24 +156,30 @@ static bool handle_workspace_key(struct klest_server *server,
 	return false;
 }
 
+/* Spawns a configured command, logging when the binding is left unset. */
+static void spawn_configured(const char *cmd, const char *key)
+{
+	if (cmd == NULL || cmd[0] == '\0') {
+		wlr_log(WLR_INFO, "no command configured ([keybindings] %s)", key);
+		return;
+	}
+	klest_startup_exec(cmd);
+}
+
 /* Compositor keybindings. Returns true if the key was consumed. */
 static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 {
+	const struct klest_config *cfg = server->config;
 	switch (sym) {
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->display);
 		return true;
-	case XKB_KEY_Return: {
-		const char *term =
-			server->config != NULL ? server->config->terminal : NULL;
-		if (term == NULL || term[0] == '\0') {
-			wlr_log(WLR_INFO,
-				"no terminal configured ([keybindings] terminal)");
-		} else {
-			klest_startup_exec(term);
-		}
+	case XKB_KEY_Return:
+		spawn_configured(cfg != NULL ? cfg->terminal : NULL, "terminal");
 		return true;
-	}
+	case XKB_KEY_space:
+		spawn_configured(cfg != NULL ? cfg->launcher : NULL, "launcher");
+		return true;
 	case XKB_KEY_F1: {
 		struct wlr_surface *focused_surface =
 			server->seat->keyboard_state.focused_surface;

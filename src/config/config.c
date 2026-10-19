@@ -33,6 +33,7 @@ void klest_config_set_defaults(struct klest_config *cfg)
 	cfg->keyboard_repeat_rate = KLEST_DEFAULT_REPEAT_RATE;
 	cfg->keyboard_repeat_delay = KLEST_DEFAULT_REPEAT_DELAY;
 	cfg->terminal[0] = '\0';
+	cfg->launcher[0] = '\0';
 	cfg->autostart_count = 0;
 }
 
@@ -260,6 +261,8 @@ bool klest_config_load(struct klest_config *cfg, const char *path)
 		&cfg->keyboard_repeat_delay, 60000);
 	apply_string(result.toptab, "keybindings.terminal",
 		cfg->terminal, sizeof(cfg->terminal));
+	apply_string(result.toptab, "keybindings.launcher",
+		cfg->launcher, sizeof(cfg->launcher));
 	apply_autostart(cfg, result.toptab);
 
 	toml_free(result);
@@ -378,6 +381,7 @@ bool klest_config_save(const struct klest_config *cfg, const char *path)
 	fprintf(f, "repeat_delay = %d\n", cfg->keyboard_repeat_delay);
 	fprintf(f, "\n[keybindings]\n");
 	write_toml_string(f, "terminal", cfg->terminal);
+	write_toml_string(f, "launcher", cfg->launcher);
 	write_autostart(f, cfg);
 
 	bool ok = ferror(f) == 0;

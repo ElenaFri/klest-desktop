@@ -43,7 +43,7 @@ that anchors to the screen through layer-shell.
 - [x] `klest-background` — standalone solid-colour layer-shell client (image loading remains future work)
 - [x] `klest-panel` — top bar with clock
 - [x] Workspace model and controls in the compositor and panel (ADR 0010)
-- [ ] `klest-launcher` — application launcher
+- [x] `klest-launcher` — application launcher
 - [ ] Notifications daemon
 - [x] Session startup: the compositor launches its components via `[startup] autostart` (ADR 0009)
 - [ ] Klest control channel (Unix socket) — only if a real need appears (ADR 0008)

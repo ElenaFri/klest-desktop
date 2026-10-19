@@ -19,6 +19,7 @@ struct klest_settings {
 	GtkSpinButton *rate;
 	GtkSpinButton *delay;
 	GtkEntry *terminal;
+	GtkEntry *launcher;
 	GtkLabel *status;
 };
 
@@ -43,6 +44,9 @@ static void on_save(GtkButton *button, gpointer data)
 
 	const char *term = gtk_editable_get_text(GTK_EDITABLE(s->terminal));
 	snprintf(cfg.terminal, sizeof(cfg.terminal), "%s", term);
+
+	const char *launch = gtk_editable_get_text(GTK_EDITABLE(s->launcher));
+	snprintf(cfg.launcher, sizeof(cfg.launcher), "%s", launch);
 
 	if (klest_config_save(&cfg, s->path)) {
 		char msg[4200];
@@ -118,6 +122,13 @@ static void activate(GtkApplication *app, gpointer data)
 	gtk_entry_set_placeholder_text(GTK_ENTRY(terminal), "e.g. foot");
 	s->terminal = GTK_ENTRY(terminal);
 	attach_row(GTK_GRID(grid), 3, "Terminal (Alt+Return)", terminal);
+
+	/* Launcher command (Alt+Space). */
+	GtkWidget *launcher = gtk_entry_new();
+	gtk_editable_set_text(GTK_EDITABLE(launcher), cfg.launcher);
+	gtk_entry_set_placeholder_text(GTK_ENTRY(launcher), "e.g. klest-launcher");
+	s->launcher = GTK_ENTRY(launcher);
+	attach_row(GTK_GRID(grid), 4, "Launcher (Alt+Space)", launcher);
 
 	/* Save button + status line. */
 	GtkWidget *save = gtk_button_new_with_label("Save");

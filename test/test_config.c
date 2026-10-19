@@ -67,6 +67,7 @@ static void test_save_round_trip(void)
 	out.background_color[1] = 0.0f;
 	out.background_color[2] = 0.5f;
 	snprintf(out.terminal, sizeof(out.terminal), "foot -e \"tmux\"");
+	snprintf(out.launcher, sizeof(out.launcher), "klest-launcher");
 	out.autostart_count = 2;
 	snprintf(out.autostart[0], KLEST_AUTOSTART_CMD_MAX, "klest-background");
 	snprintf(out.autostart[1], KLEST_AUTOSTART_CMD_MAX, "echo \"hi\"");
@@ -83,6 +84,7 @@ static void test_save_round_trip(void)
 	assert(near(in.background_color[0], 1.0f));
 	assert(near(in.background_color[2], 0.5f));
 	assert(strcmp(in.terminal, "foot -e \"tmux\"") == 0); /* quotes survive escaping */
+	assert(strcmp(in.launcher, "klest-launcher") == 0);
 	assert(in.autostart_count == 2);
 	assert(strcmp(in.autostart[0], "klest-background") == 0);
 	assert(strcmp(in.autostart[1], "echo \"hi\"") == 0); /* quotes survive escaping */
@@ -96,6 +98,7 @@ static void test_missing_file_keeps_defaults(void)
 	assert(ok); /* a missing file is not an error */
 	assert(cfg.keyboard_repeat_rate == 25);
 	assert(cfg.terminal[0] == '\0');
+	assert(cfg.launcher[0] == '\0');
 }
 
 static void test_overlay_from_file(void)
@@ -109,6 +112,7 @@ static void test_overlay_from_file(void)
 		"repeat_rate = 40\n"
 		"[keybindings]\n"
 		"terminal = \"foot\"\n"
+		"launcher = \"klest-launcher\"\n"
 		"[startup]\n"
 		"autostart = [\"klest-background\", \"klest-panel\"]\n",
 		f);
@@ -123,6 +127,7 @@ static void test_overlay_from_file(void)
 	assert(cfg.keyboard_repeat_delay == 600);   /* kept from defaults */
 	assert(near(cfg.background_color[0], 0.063f));
 	assert(strcmp(cfg.terminal, "foot") == 0);
+	assert(strcmp(cfg.launcher, "klest-launcher") == 0);
 	assert(cfg.autostart_count == 2);
 	assert(strcmp(cfg.autostart[0], "klest-background") == 0);
 	assert(strcmp(cfg.autostart[1], "klest-panel") == 0);

@@ -59,6 +59,7 @@ klest_inc = include_directories('.')
 
 # Vendored third-party code (built in isolation; see ADR 0007).
 subdir('third_party/tomlc17')
+subdir('third_party/font8x8')
 
 subdir('src')
 subdir('test')

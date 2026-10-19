@@ -120,13 +120,14 @@ if have_compositor
             'klest-wayland-client',
             'wayland/layer_client.c',
             'wayland/shm.c',
+            'wayland/font.c',
             			layer_shell_client_header,
             			layer_shell_client_code,
             			xdg_shell_client_code,
             			workspace_client_header,
             			workspace_client_code,
             include_directories: [klest_inc, include_directories('.')],
-            dependencies: wayland_client_dep,
+            dependencies: [wayland_client_dep, font8x8_dep],
         )
         klest_wayland_client_dep = declare_dependency(
             link_with: klest_wayland_client,
@@ -147,6 +148,14 @@ if have_compositor
             'components/klest-panel.c',
             include_directories: [klest_inc, include_directories('.')],
             dependencies: klest_wayland_client_dep,
+            install: true,
+        )
+
+        executable(
+            'klest-launcher',
+            'components/klest-launcher.c',
+            include_directories: [klest_inc, include_directories('.')],
+            dependencies: [klest_wayland_client_dep, xkbcommon_dep],
             install: true,
         )
     endif

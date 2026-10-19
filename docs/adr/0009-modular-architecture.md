@@ -50,3 +50,8 @@ Responsibilities are separated **progressively**, around three broad areas:
 - Clear interfaces make the system easier to reason about and test (unit +
   integration, see 0006). Layer-shell can be exercised headless like xdg-shell.
 - The first components validate the pattern before heavier ones are built.
+- Interactive components (e.g. the launcher) need keyboard input, so the
+  compositor honours a layer surface's `keyboard_interactive` request: it gives
+  such a surface keyboard focus on map, and restores focus to a workspace window
+  (or clears it) on unmap. Non-interactive components (background, panel) keep
+  `keyboard_interactive = none` and never steal focus.

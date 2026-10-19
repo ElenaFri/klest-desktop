@@ -111,11 +111,21 @@ Klest's socket:
 WAYLAND_DISPLAY=wayland-0 foot
 ```
 
+### Application launcher
+
+`klest-launcher` is a keyboard-driven, full-screen overlay listing the
+executables found in `$PATH`. Type to filter, `Up`/`Down` (or `Tab`) to select,
+`Enter` to launch, `Escape` to cancel. Bind it to `Alt`+`Space` by setting
+`launcher = "klest-launcher"` under `[keybindings]` (use the build-tree path,
+e.g. `"./build/src/klest-launcher"`, when running uninstalled). You can also run
+it directly: `WAYLAND_DISPLAY=wayland-0 ./build/src/klest-launcher`.
+
 ### Keybindings
 
 | Shortcut            | Action                        |
 | ------------------- | ----------------------------- |
 | `Alt` + `Return`    | Launch the configured terminal |
+| `Alt` + `Space`     | Launch the configured launcher |
 | `Alt` + `Escape`    | Quit Klest                    |
 | `Alt` + `F1`        | Cycle focus between windows    |
 | `Alt` + `1`…`4`      | Switch to workspace 1–4        |

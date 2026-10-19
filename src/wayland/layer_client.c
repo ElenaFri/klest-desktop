@@ -90,7 +90,7 @@ bool klest_layer_client_connect(struct klest_layer_client *client)
 bool klest_layer_client_create_surface(struct klest_layer_client *client,
 	uint32_t layer, const char *namespace, uint32_t anchors,
 	uint32_t width, uint32_t height, int32_t exclusive_zone,
-	bool accepts_pointer_input)
+	bool accepts_pointer_input, bool keyboard_interactive)
 {
 	client->surface = wl_compositor_create_surface(client->compositor);
 	if (client->surface == NULL) {
@@ -119,6 +119,10 @@ bool klest_layer_client_create_surface(struct klest_layer_client *client,
 	zwlr_layer_surface_v1_set_size(client->layer_surface, width, height);
 	zwlr_layer_surface_v1_set_exclusive_zone(client->layer_surface,
 		exclusive_zone);
+	zwlr_layer_surface_v1_set_keyboard_interactivity(client->layer_surface,
+		keyboard_interactive ?
+			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE :
+			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
 	wl_surface_commit(client->surface);
 	return true;
 }

@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-			0, 0, -1, false) &&
+			0, 0, -1, false, false) &&
 		klest_layer_client_wait_configure(layer);
 	if (ok) {
 		ok = run_background(&background, once);

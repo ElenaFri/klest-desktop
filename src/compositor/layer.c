@@ -8,13 +8,16 @@
  */
 
 #include "server.h"
+#include "view.h"
 
 #include <stdlib.h>
 
+#include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
+#include <wlr/types/wlr_seat.h>
 #include <wlr/util/box.h>
 #include <wlr/util/log.h>
 
@@ -92,6 +95,32 @@ static void layer_surface_map(struct wl_listener *listener, void *data)
 		wl_container_of(listener, surface, map);
 	(void)data;
 	klest_arrange_output_layers(surface->output);
+
+	/* Honour clients that ask for keyboard focus (e.g. the launcher). */
+	struct wlr_layer_surface_v1 *wlr_surface = surface->layer_surface;
+	if (wlr_surface->current.keyboard_interactive !=
+			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE) {
+		struct wlr_seat *seat = surface->server->seat;
+		struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+		if (keyboard != NULL) {
+			wlr_seat_keyboard_notify_enter(seat, wlr_surface->surface,
+				keyboard->keycodes, keyboard->num_keycodes,
+				&keyboard->modifiers);
+		}
+	}
+}
+
+/* Hands keyboard focus to a window on the active workspace, or clears it. */
+static void refocus_after_layer(struct klest_server *server)
+{
+	struct klest_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		if (toplevel->workspace == server->workspaces.active) {
+			klest_focus_toplevel(toplevel);
+			return;
+		}
+	}
+	wlr_seat_keyboard_notify_clear_focus(server->seat);
 }
 
 static void layer_surface_unmap(struct wl_listener *listener, void *data)
@@ -100,6 +129,13 @@ static void layer_surface_unmap(struct wl_listener *listener, void *data)
 		wl_container_of(listener, surface, unmap);
 	(void)data;
 	klest_arrange_output_layers(surface->output);
+
+	/* If this surface held keyboard focus, give it back to a window. */
+	struct wlr_seat *seat = surface->server->seat;
+	if (seat->keyboard_state.focused_surface ==
+			surface->layer_surface->surface) {
+		refocus_after_layer(surface->server);
+	}
 }
 
 static void layer_surface_commit(struct wl_listener *listener, void *data)
