@@ -91,6 +91,7 @@ if have_compositor
         executable(
             'klest-background',
             'components/klest-background.c',
+            'wayland/shm.c',
             layer_shell_client_header,
             layer_shell_client_code,
             xdg_shell_client_code,

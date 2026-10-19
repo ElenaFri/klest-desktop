@@ -12,14 +12,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include <wayland-client.h>
 #include <wayland-client-protocol.h>
 
 #include "config/config.h"
 #include "background-layer-shell-client-protocol.h"
+#include "wayland/shm.h"
 
 struct background {
 	struct wl_display *display;
@@ -141,66 +140,7 @@ static uint32_t premultiplied_argb(const float color[4])
 		((uint32_t)green << 8) | (uint32_t)blue;
 }
 
-static struct wl_buffer *create_color_buffer(struct background *background,
-	uint32_t width, uint32_t height)
-{
-	if (width == 0 || height == 0 || width > (uint32_t)(INT32_MAX / 4) ||
-		height > (uint32_t)(INT32_MAX / ((int32_t)width * 4))) {
-		fprintf(stderr, "klest-background: invalid output dimensions\n");
-		return NULL;
-	}
-	int32_t stride = (int32_t)width * 4;
-	int32_t size = stride * (int32_t)height;
-	const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
-	if (runtime_dir == NULL || runtime_dir[0] == '\0') {
-		fprintf(stderr, "klest-background: XDG_RUNTIME_DIR is unset\n");
-		return NULL;
-	}
 
-	char path[4096];
-	int path_len = snprintf(path, sizeof(path), "%s/klest-background-XXXXXX",
-		runtime_dir);
-	if (path_len < 0 || (size_t)path_len >= sizeof(path)) {
-		fprintf(stderr, "klest-background: SHM path is too long\n");
-		return NULL;
-	}
-	int fd = mkstemp(path);
-	if (fd < 0) {
-		perror("klest-background: mkstemp");
-		return NULL;
-	}
-	(void)unlink(path);
-	if (ftruncate(fd, size) != 0) {
-		perror("klest-background: ftruncate");
-		close(fd);
-		return NULL;
-	}
-
-	void *memory = mmap(NULL, (size_t)size, PROT_READ | PROT_WRITE,
-		MAP_SHARED, fd, 0);
-	if (memory == MAP_FAILED) {
-		perror("klest-background: mmap");
-		close(fd);
-		return NULL;
-	}
-	uint32_t pixel = premultiplied_argb(background->color);
-	uint32_t *pixels = memory;
-	size_t count = (size_t)width * (size_t)height;
-	for (size_t i = 0; i < count; i++) {
-		pixels[i] = pixel;
-	}
-	(void)munmap(memory, (size_t)size);
-
-	struct wl_shm_pool *pool = wl_shm_create_pool(background->shm, fd, size);
-	close(fd);
-	if (pool == NULL) {
-		return NULL;
-	}
-	struct wl_buffer *buffer = wl_shm_pool_create_buffer(pool, 0,
-		(int32_t)width, (int32_t)height, stride, WL_SHM_FORMAT_ARGB8888);
-	wl_shm_pool_destroy(pool);
-	return buffer;
-}
 
 static bool create_background_surface(struct background *background)
 {
@@ -252,8 +192,9 @@ static bool create_background_surface(struct background *background)
 
 static bool update_background_buffer(struct background *background)
 {
-	struct wl_buffer *buffer = create_color_buffer(background,
-		background->width, background->height);
+	uint32_t pixel = premultiplied_argb(background->color);
+	struct wl_buffer *buffer = klest_shm_buffer_create(background->shm,
+		background->width, background->height, pixel);
 	if (buffer == NULL) {
 		return false;
 	}
@@ -280,14 +221,22 @@ static bool map_background(struct background *background, bool once)
 	if (!update_background_buffer(background)) {
 		return false;
 	}
-	if (!once) {
-		while (!background->closed &&
-				wl_display_dispatch(background->display) >= 0) {
-			if ((background->width != background->mapped_width ||
-					background->height != background->mapped_height) &&
-					!update_background_buffer(background)) {
-				return false;
-			}
+	if (once) {
+		wl_surface_attach(background->surface, NULL, 0, 0);
+		wl_surface_commit(background->surface);
+		if (wl_display_roundtrip(background->display) < 0) {
+			fprintf(stderr, "klest-background: failed to unmap surface\n");
+			return false;
+		}
+		return true;
+	}
+
+	while (!background->closed &&
+			wl_display_dispatch(background->display) >= 0) {
+		if ((background->width != background->mapped_width ||
+				background->height != background->mapped_height) &&
+				!update_background_buffer(background)) {
+			return false;
 		}
 	}
 	return true;

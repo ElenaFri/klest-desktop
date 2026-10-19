@@ -12,6 +12,7 @@
 #include <wayland-client-protocol.h>
 
 #include "xdg-shell-client-protocol.h"
+#include "../src/wayland/shm.h"
 
 struct test_client {
 	struct wl_display *display;
@@ -112,46 +113,6 @@ static const struct wl_registry_listener registry_listener = {
 	.global_remove = registry_global_remove,
 };
 
-static struct wl_buffer *create_test_buffer(struct wl_shm *shm)
-{
-	const int width = 32;
-	const int height = 32;
-	const int stride = width * 4;
-	const int size = stride * height;
-	const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
-	if (runtime_dir == NULL) {
-		fprintf(stderr, "integration client: XDG_RUNTIME_DIR is unset\n");
-		return NULL;
-	}
-	char path[4096];
-	int path_len = snprintf(path, sizeof(path), "%s/klest-shm-XXXXXX",
-		runtime_dir);
-	if (path_len < 0 || (size_t)path_len >= sizeof(path)) {
-		fprintf(stderr, "integration client: SHM path too long\n");
-		return NULL;
-	}
-	int fd = mkstemp(path);
-	if (fd < 0) {
-		perror("mkstemp");
-		return NULL;
-	}
-	(void)unlink(path);
-	if (ftruncate(fd, size) != 0) {
-		perror("ftruncate");
-		close(fd);
-		return NULL;
-	}
-
-	struct wl_shm_pool *pool = wl_shm_create_pool(shm, fd, size);
-	close(fd);
-	if (pool == NULL) {
-		return NULL;
-	}
-	struct wl_buffer *buffer = wl_shm_pool_create_buffer(pool, 0, width, height,
-		stride, WL_SHM_FORMAT_ARGB8888);
-	wl_shm_pool_destroy(pool);
-	return buffer;
-}
 
 static void destroy_client(struct test_client *client)
 {
@@ -249,7 +210,8 @@ static bool exercise_toplevel(struct test_client *client)
 		return false;
 	}
 
-	client->buffer = create_test_buffer(client->shm);
+	client->buffer = klest_shm_buffer_create(client->shm, 32, 32,
+			0xff404040U);
 	if (client->buffer == NULL) {
 		fprintf(stderr, "integration client: cannot create SHM buffer\n");
 		return false;
