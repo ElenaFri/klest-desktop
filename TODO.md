@@ -45,5 +45,5 @@ that anchors to the screen through layer-shell.
 - [x] Workspace model and controls in the compositor and panel (ADR 0010)
 - [ ] `klest-launcher` — application launcher
 - [ ] Notifications daemon
-- [ ] Session startup: launch the compositor and its components together
+- [x] Session startup: the compositor launches its components via `[startup] autostart` (ADR 0009)
 - [ ] Klest control channel (Unix socket) — only if a real need appears (ADR 0008)

@@ -7,6 +7,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Maximum number of autostart commands, and the length of each. */
+#define KLEST_AUTOSTART_MAX 16
+#define KLEST_AUTOSTART_CMD_MAX 256
+
 /*
  * Klest's configuration contract (ADR 0007):
  *   - Built-in defaults make Klest work out of the box, with no config file.
@@ -19,6 +23,9 @@ struct klest_config {
 	int32_t keyboard_repeat_rate;  /* key repeats per second */
 	int32_t keyboard_repeat_delay; /* delay before repeat, milliseconds */
 	char terminal[256];            /* command spawned on Alt+Return; "" disables */
+	/* Commands launched once the compositor is up (ADR 0009 components). */
+	char autostart[KLEST_AUTOSTART_MAX][KLEST_AUTOSTART_CMD_MAX];
+	size_t autostart_count;
 };
 
 /* Fills `cfg` with Klest's built-in defaults. */

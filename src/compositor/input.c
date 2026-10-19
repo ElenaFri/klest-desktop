@@ -9,7 +9,6 @@
 
 #include <signal.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
@@ -30,6 +29,7 @@
 #include <xkbcommon/xkbcommon.h>
 
 #include "server.h"
+#include "startup.h"
 #include "view.h"
 #include "workspace.h"
 #include "config/config.h"
@@ -133,23 +133,6 @@ static void cursor_frame(struct wl_listener *listener, void *data)
 	wlr_seat_pointer_notify_frame(server->seat);
 }
 
-/* Launches a command detached from the compositor, via the shell. */
-static void spawn(const char *cmd)
-{
-	if (cmd == NULL || cmd[0] == '\0') {
-		wlr_log(WLR_INFO, "no terminal configured ([keybindings] terminal)");
-		return;
-	}
-	pid_t pid = fork();
-	if (pid == 0) {
-		setsid();
-		execl("/bin/sh", "/bin/sh", "-c", cmd, (char *)NULL);
-		_exit(127);
-	} else if (pid < 0) {
-		wlr_log(WLR_ERROR, "failed to fork for '%s'", cmd);
-	}
-}
-
 static bool handle_workspace_key(struct klest_server *server,
 	struct wlr_keyboard *keyboard, uint32_t keycode, bool move)
 {
@@ -180,9 +163,17 @@ static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 	case XKB_KEY_Escape:
 		wl_display_terminate(server->display);
 		return true;
-	case XKB_KEY_Return:
-		spawn(server->config != NULL ? server->config->terminal : NULL);
+	case XKB_KEY_Return: {
+		const char *term =
+			server->config != NULL ? server->config->terminal : NULL;
+		if (term == NULL || term[0] == '\0') {
+			wlr_log(WLR_INFO,
+				"no terminal configured ([keybindings] terminal)");
+		} else {
+			klest_startup_exec(term);
+		}
 		return true;
+	}
 	case XKB_KEY_F1: {
 		struct wlr_surface *focused_surface =
 			server->seat->keyboard_state.focused_surface;

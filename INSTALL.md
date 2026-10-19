@@ -63,9 +63,15 @@ Klest is a Wayland compositor. You can run it two ways:
   (e.g. `Ctrl+Alt+F3`), log in, then run the same command.
 
 Without desktop components, the compositor output is blank except for the cursor.
-Components are not started automatically yet. From another terminal (or VT) for
-the same user, use the `WAYLAND_DISPLAY` name printed by Klest; examples below
-assume `wayland-0`:
+Klest can launch its components for you: list them under `[startup]` in the
+configuration (see [Configuration](#configuration)). The shipped
+`examples/config.toml` already autostarts `klest-background` and `klest-panel`,
+so copying it gives you a full session. When running from a build tree rather
+than an install, use paths instead of bare names, e.g.
+`autostart = ["./build/src/klest-background", "./build/src/klest-panel"]`.
+
+To start a component by hand instead, use the `WAYLAND_DISPLAY` name printed by
+Klest (examples below assume `wayland-0`):
 
 ```sh
 WAYLAND_DISPLAY=wayland-0 ./build/src/klest-background

@@ -9,6 +9,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "server.h"
+#include "startup.h"
 #include "workspace.h"
 
 #include <signal.h>
@@ -249,6 +250,8 @@ bool klest_server_run(struct klest_server *server)
 
 	setenv("WAYLAND_DISPLAY", socket, true);
 	wlr_log(WLR_INFO, "Klest running on WAYLAND_DISPLAY=%s", socket);
+
+	klest_startup_run(server->config);
 
 	wl_display_run(server->display);
 	return true;

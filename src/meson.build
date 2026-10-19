@@ -66,6 +66,7 @@ if have_compositor
         'compositor/server.c',
         'compositor/view.c',
         'compositor/input.c',
+        'compositor/startup.c',
         		'compositor/layer.c',
         		'compositor/workspace.c',
         		xdg_shell_header,

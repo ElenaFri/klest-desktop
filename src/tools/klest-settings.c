@@ -28,7 +28,9 @@ static void on_save(GtkButton *button, gpointer data)
 	struct klest_settings *s = data;
 
 	struct klest_config cfg;
-	klest_config_set_defaults(&cfg);
+	/* Load the existing file so fields the UI does not edit (e.g. the
+	 * autostart list) survive the save; falls back to defaults if absent. */
+	klest_config_load(&cfg, s->path);
 
 	const GdkRGBA *rgba = gtk_color_dialog_button_get_rgba(s->color);
 	cfg.background_color[0] = rgba->red;

@@ -33,6 +33,7 @@ void klest_config_set_defaults(struct klest_config *cfg)
 	cfg->keyboard_repeat_rate = KLEST_DEFAULT_REPEAT_RATE;
 	cfg->keyboard_repeat_delay = KLEST_DEFAULT_REPEAT_DELAY;
 	cfg->terminal[0] = '\0';
+	cfg->autostart_count = 0;
 }
 
 static int hex_nibble(char c)
@@ -170,6 +171,43 @@ static void apply_positive_int(toml_datum_t root, const char *key,
 	*out = (int32_t)datum.u.int64;
 }
 
+/* Reads [startup].autostart, an array of command strings, into `cfg`. */
+static void apply_autostart(struct klest_config *cfg, toml_datum_t root)
+{
+	toml_datum_t arr = toml_seek(root, "startup.autostart");
+	if (arr.type == TOML_UNKNOWN) {
+		return;
+	}
+	if (arr.type != TOML_ARRAY) {
+		fprintf(stderr, "klest: config: startup.autostart must be an array\n");
+		return;
+	}
+
+	size_t count = 0;
+	for (int32_t i = 0; i < arr.u.arr.size; i++) {
+		if (count >= KLEST_AUTOSTART_MAX) {
+			fprintf(stderr, "klest: config: startup.autostart truncated "
+				"to %d entries\n", KLEST_AUTOSTART_MAX);
+			break;
+		}
+		toml_datum_t elem = arr.u.arr.elem[i];
+		if (elem.type != TOML_STRING) {
+			fprintf(stderr,
+				"klest: config: startup.autostart entries must be strings\n");
+			continue;
+		}
+		int n = snprintf(cfg->autostart[count], KLEST_AUTOSTART_CMD_MAX,
+			"%s", elem.u.s);
+		if (n < 0 || (size_t)n >= KLEST_AUTOSTART_CMD_MAX) {
+			fprintf(stderr, "klest: config: autostart command too long "
+				"(max %d bytes)\n", KLEST_AUTOSTART_CMD_MAX - 1);
+			continue;
+		}
+		count++;
+	}
+	cfg->autostart_count = count;
+}
+
 /* Reads a string key into a fixed-size buffer, keeping the default on problems. */
 static void apply_string(toml_datum_t root, const char *key, char *out,
 	size_t cap)
@@ -222,6 +260,7 @@ bool klest_config_load(struct klest_config *cfg, const char *path)
 		&cfg->keyboard_repeat_delay, 60000);
 	apply_string(result.toptab, "keybindings.terminal",
 		cfg->terminal, sizeof(cfg->terminal));
+	apply_autostart(cfg, result.toptab);
 
 	toml_free(result);
 	return true;
@@ -265,10 +304,9 @@ static bool ensure_parent_dir(const char *path)
 	return mkdir_p(dir);
 }
 
-/* Writes `value` as a TOML basic string: key = "...", with escaping. */
-static void write_toml_string(FILE *f, const char *key, const char *value)
+/* Writes the body of a TOML basic string (no surrounding quotes), escaped. */
+static void write_escaped(FILE *f, const char *value)
 {
-	fprintf(f, "%s = \"", key);
 	for (const char *p = value; *p != '\0'; p++) {
 		switch (*p) {
 		case '\\': fputs("\\\\", f); break;
@@ -278,7 +316,29 @@ static void write_toml_string(FILE *f, const char *key, const char *value)
 		default:   fputc(*p, f); break;
 		}
 	}
+}
+
+/* Writes `value` as a TOML basic string: key = "...", with escaping. */
+static void write_toml_string(FILE *f, const char *key, const char *value)
+{
+	fprintf(f, "%s = \"", key);
+	write_escaped(f, value);
 	fputs("\"\n", f);
+}
+
+/* Writes the [startup] section with the autostart command array. */
+static void write_autostart(FILE *f, const struct klest_config *cfg)
+{
+	fputs("\n[startup]\nautostart = [", f);
+	for (size_t i = 0; i < cfg->autostart_count; i++) {
+		if (i > 0) {
+			fputs(", ", f);
+		}
+		fputc('"', f);
+		write_escaped(f, cfg->autostart[i]);
+		fputc('"', f);
+	}
+	fputs("]\n", f);
 }
 
 bool klest_config_save(const struct klest_config *cfg, const char *path)
@@ -318,6 +378,7 @@ bool klest_config_save(const struct klest_config *cfg, const char *path)
 	fprintf(f, "repeat_delay = %d\n", cfg->keyboard_repeat_delay);
 	fprintf(f, "\n[keybindings]\n");
 	write_toml_string(f, "terminal", cfg->terminal);
+	write_autostart(f, cfg);
 
 	bool ok = ferror(f) == 0;
 	if (fclose(f) != 0) {
