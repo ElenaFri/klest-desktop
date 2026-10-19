@@ -158,6 +158,16 @@ if have_compositor
             dependencies: [klest_wayland_client_dep, xkbcommon_dep],
             install: true,
         )
+
+        if have_notify
+            executable(
+                'klest-notify',
+                'components/klest-notify.c',
+                include_directories: [klest_inc, include_directories('.')],
+                dependencies: [klest_wayland_client_dep, sdbus_dep],
+                install: true,
+            )
+        endif
     endif
 endif
 

@@ -43,7 +43,7 @@ Responsibilities are separated **progressively**, around three broad areas:
 - The compositor starts the session by launching the commands listed under
   `[startup].autostart` in the TOML config (0007), once the Wayland socket is up.
   This keeps components standalone while still giving a one-command session; the
-  default example config autostarts the background and panel.
+  default example config autostarts the background, panel and notification daemon.
 - The compositor ↔ component channel is Wayland itself, so most components need
   **no custom IPC** — this reduces the scope of the Unix-socket decision (0008)
   to a Klest-specific control channel only.

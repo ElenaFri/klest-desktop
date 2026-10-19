@@ -25,6 +25,7 @@ Each record uses a short status:
 | 0008 | [Inter-module communication](0008-ipc-unix-sockets.md) | Deferred |
 | 0009 | [Modular architecture & process boundaries](0009-modular-architecture.md) | Accepted |
 | 0010 | [Workspace model & control protocol](0010-workspace-model.md) | Accepted |
+| 0011 | [Desktop notifications over D-Bus](0011-notifications-dbus.md) | Accepted |
 
 ## Open questions
 

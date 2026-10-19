@@ -83,4 +83,13 @@ if have_compositor and wayland_client_dep.found()
         meson.current_build_dir(),
         '--once',
     ], timeout: 30)
+
+    if have_notify
+        test('notify-integration', test_compositor, args: [
+            meson.project_build_root() / 'src/klest',
+            meson.project_build_root() / 'src/klest-notify',
+            meson.current_build_dir(),
+            '--once',
+        ], timeout: 30)
+    endif
 endif

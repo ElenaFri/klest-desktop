@@ -26,4 +26,4 @@ launcher = ""
 # Commands launched once, after the compositor is up. The defaults below bring
 # up a full session; empty them (autostart = []) to run the compositor bare.
 # When running from a build tree, use paths like "./build/src/klest-background".
-autostart = ["klest-background", "klest-panel"]
+autostart = ["klest-background", "klest-panel", "klest-notify"]

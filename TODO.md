@@ -44,6 +44,6 @@ that anchors to the screen through layer-shell.
 - [x] `klest-panel` — top bar with clock
 - [x] Workspace model and controls in the compositor and panel (ADR 0010)
 - [x] `klest-launcher` — application launcher
-- [ ] Notifications daemon
+- [x] Notifications daemon (`klest-notify`, `org.freedesktop.Notifications` over D-Bus — ADR 0011)
 - [x] Session startup: the compositor launches its components via `[startup] autostart` (ADR 0009)
 - [ ] Klest control channel (Unix socket) — only if a real need appears (ADR 0008)

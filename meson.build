@@ -47,6 +47,11 @@ klest_workspace_xml = files('protocol/klest-workspace-v1.xml')
 gtk4_dep = dependency('gtk4', required: get_option('settings'))
 have_settings = gtk4_dep.found()
 
+# Optional notification daemon (ADR 0011). sd-bus from libsystemd; basu is a
+# drop-in alternative on non-systemd systems. Only linked into klest-notify.
+sdbus_dep = dependency('libsystemd', required: get_option('notify'))
+have_notify = sdbus_dep.found()
+
 # Compile-time configuration (version, feature flags), exposed as <config.h>.
 conf_data = configuration_data()
 conf_data.set_quoted('KLEST_VERSION', meson.project_version())
@@ -66,3 +71,4 @@ subdir('test')
 
 summary({'compositor': have_compositor}, section: 'Features')
 summary({'settings (GTK tool)': have_settings}, section: 'Features')
+summary({'notify (D-Bus daemon)': have_notify}, section: 'Features')

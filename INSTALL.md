@@ -19,6 +19,7 @@ sudo apt install \
     libwayland-dev libwayland-bin \
     wayland-protocols \
     libxkbcommon-dev \
+    libsystemd-dev \
     libgtk-4-dev
 ```
 
@@ -30,6 +31,7 @@ sudo apt install \
 - `libwayland-dev`, `wayland-protocols` — Wayland support (ADR 0002)
 - `libwayland-bin` — provides `wayland-scanner`, used to generate protocol headers
 - `libxkbcommon-dev` — keyboard keymaps
+- `libsystemd-dev` — sd-bus, for the notification daemon (ADR 0011)
 - `libgtk-4-dev` — GUI tools (ADR 0005)
 
 ## Build
@@ -65,9 +67,9 @@ Klest is a Wayland compositor. You can run it two ways:
 Without desktop components, the compositor output is blank except for the cursor.
 Klest can launch its components for you: list them under `[startup]` in the
 configuration (see [Configuration](#configuration)). The shipped
-`examples/config.toml` already autostarts `klest-background` and `klest-panel`,
-so copying it gives you a full session. When running from a build tree rather
-than an install, use paths instead of bare names, e.g.
+`examples/config.toml` already autostarts `klest-background`, `klest-panel` and
+`klest-notify`, so copying it gives you a full session. When running from a build
+tree rather than an install, use paths instead of bare names, e.g.
 `autostart = ["./build/src/klest-background", "./build/src/klest-panel"]`.
 
 To start a component by hand instead, use the `WAYLAND_DISPLAY` name printed by
@@ -119,6 +121,21 @@ executables found in `$PATH`. Type to filter, `Up`/`Down` (or `Tab`) to select,
 `launcher = "klest-launcher"` under `[keybindings]` (use the build-tree path,
 e.g. `"./build/src/klest-launcher"`, when running uninstalled). You can also run
 it directly: `WAYLAND_DISPLAY=wayland-0 ./build/src/klest-launcher`.
+
+### Notifications
+
+`klest-notify` is a notification daemon speaking the standard
+`org.freedesktop.Notifications` D-Bus interface (ADR 0011). Start it like any
+other component (e.g. add it to `[startup]`, or run it directly), then any
+application can post notifications:
+
+```sh
+WAYLAND_DISPLAY=wayland-0 ./build/src/klest-notify &
+notify-send "Hello" "from Klest"   # needs libnotify-bin
+```
+
+Cards stack in the top-right corner and expire on their timeout. It needs a
+running session bus; only one notification daemon can own the name at a time.
 
 ### Keybindings
 

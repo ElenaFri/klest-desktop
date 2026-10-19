@@ -11,3 +11,10 @@ option(
     value: 'auto',
     description: 'Build the GTK configuration tool klest-settings (requires GTK 4)',
 )
+
+option(
+    'notify',
+    type: 'feature',
+    value: 'auto',
+    description: 'Build the notification daemon klest-notify (requires libsystemd/sd-bus)',
+)
