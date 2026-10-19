@@ -20,7 +20,6 @@ struct klest_toplevel;
 struct klest_config;
 
 struct wlr_output;
-struct wlr_scene_rect;
 struct wlr_scene_tree;
 struct wlr_layer_shell_v1;
 
@@ -30,7 +29,6 @@ struct klest_output {
 	struct wl_list link; /* klest_server.outputs */
 	struct klest_server *server;
 	struct wlr_output *wlr_output;
-	struct wlr_scene_rect *background;
 
 	/* Area left after layer surfaces reserve exclusive zones (layout coords). */
 	struct wlr_box usable_area;

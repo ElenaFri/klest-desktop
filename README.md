@@ -4,7 +4,9 @@ _**A lean Wayland desktop environment in C, built to adapt and thriving through 
 
 <img src="logo.png" alt="Klest's logo" width="200">
 
-Klest takes its name from the crossbill, a bird adapted to demanding environments. Its distinctive beak is not a decoration, but a practical answer to the conditions in which it lives.
+> "Winter is coming, and we know what's coming with it."
+
+Klest takes its name from the crossbill, a bird adapted to hard winters. Its distinctive beak is not a decoration, but a practical answer to the conditions in which it lives.
 
 The same idea guides this project: a desktop environment should adapt to its user, not the other way around. Klest aims to be lightweight and straightforward to configure, with sensible defaults for those who want things to work and enough flexibility for those who want to shape their own environment.
 
@@ -23,7 +25,7 @@ Minimalism, here, is not about removing features for the sake of it. It is about
 - **GUI tools:** GTK
 - **Build system:** Meson + Ninja
 - **Configuration:** TOML
-- **Module communication:** Unix sockets
+- **Component interface:** Wayland protocols (layer-shell); Unix sockets only if needed
 
 The reasoning behind each choice, as well as the questions still open, are documented in the [Architecture Decision Records](docs/adr/README.md).
 

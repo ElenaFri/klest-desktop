@@ -64,13 +64,17 @@ static bool wait_for_child(pid_t pid, int *status, int timeout_ms)
 	return false;
 }
 
-static pid_t start_process(const char *path)
+static pid_t start_process(const char *path, const char *argument)
 {
 	pid_t pid = fork();
 	if (pid != 0) {
 		return pid;
 	}
-	execl(path, path, (char *)NULL);
+	if (argument != NULL) {
+		execl(path, path, argument, (char *)NULL);
+	} else {
+		execl(path, path, (char *)NULL);
+	}
 	perror(path);
 	_exit(127);
 }
@@ -97,8 +101,9 @@ static bool stop_compositor(pid_t pid)
 
 int main(int argc, char *argv[])
 {
-	if (argc != 4) {
-		fprintf(stderr, "usage: %s KLEST CLIENT RUNTIME_BASE\n", argv[0]);
+	if (argc != 4 && argc != 5) {
+		fprintf(stderr, "usage: %s KLEST CLIENT RUNTIME_BASE [CLIENT_ARG]\n",
+			argv[0]);
 		return 2;
 	}
 
@@ -138,7 +143,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	pid_t server_pid = start_process(argv[1]);
+	pid_t server_pid = start_process(argv[1], NULL);
 	if (server_pid < 0) {
 		perror("fork compositor");
 		(void)rmdir(runtime_dir);
@@ -147,7 +152,7 @@ int main(int argc, char *argv[])
 
 	bool ok = wait_for_socket(&server_pid, socket_path);
 	if (ok) {
-		pid_t client_pid = start_process(argv[2]);
+		pid_t client_pid = start_process(argv[2], argc == 5 ? argv[4] : NULL);
 		if (client_pid < 0) {
 			perror("fork client");
 			ok = false;

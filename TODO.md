@@ -40,7 +40,7 @@ The compositor stays minimal; every other part is a standalone Wayland client
 that anchors to the screen through layer-shell.
 
 - [x] Compositor: implement `wlr-layer-shell-unstable-v1` (+ headless test)
-- [ ] `klest-background` — wallpaper (first layer-shell client, validates the pattern)
+- [x] `klest-background` — standalone solid-colour layer-shell client (image loading remains future work)
 - [ ] `klest-panel` — bar (workspaces, clock)
 - [ ] `klest-launcher` — application launcher
 - [ ] Notifications daemon

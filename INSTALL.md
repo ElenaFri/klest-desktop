@@ -61,9 +61,17 @@ Klest is a Wayland compositor. You can run it two ways:
 - **From a TTY**, as a standalone session: switch to a free virtual terminal
   (e.g. `Ctrl+Alt+F3`), log in, then run the same command.
 
-On startup you'll see an empty desktop: a dark background and the cursor. This is
-expected — Klest is a minimal compositor with no panel or launcher, so nothing is
-open yet.
+Without desktop components, the compositor output is blank except for the cursor.
+To start the standalone background client, open another terminal in the same
+session and run:
+
+```sh
+WAYLAND_DISPLAY=wayland-0 ./build/src/klest-background
+```
+
+It fills the output with `[appearance].background_color` from the Klest TOML
+configuration. This first version supports a solid colour, not wallpaper images.
+There is not yet a session manager to start it automatically.
 
 To get a window you need a **Wayland-native** terminal (Klest has no XWayland, so
 X11-only apps won't show). Install one, e.g.:

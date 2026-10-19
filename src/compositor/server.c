@@ -1,9 +1,9 @@
 /*
  * Klest — Wayland compositor server (ADR 0002, 0004).
  *
- * Brings up the display, backend, renderer and scene, configures every output
- * with a solid background, and wires in the window (xdg-shell) and input
- * subsystems.
+ * Brings up the display, backend, renderer and scene, then wires in the window
+ * (xdg-shell), layer-shell and input subsystems. Desktop backgrounds are
+ * standalone layer-shell clients (ADR 0009).
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -27,10 +27,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 
-#include "config/config.h"
 
-/* Fallback background colour when no configuration is available (RGBA). */
-static const float KLEST_BACKGROUND_COLOR[4] = {0.10f, 0.11f, 0.16f, 1.0f};
 
 static int terminate_on_signal(int signal_number, void *data)
 {
@@ -71,8 +68,6 @@ static void output_request_state(struct wl_listener *listener, void *data)
 	const struct wlr_output_event_request_state *event = data;
 
 	wlr_output_commit_state(output->wlr_output, event->state);
-	wlr_scene_rect_set_size(output->background,
-		output->wlr_output->width, output->wlr_output->height);
 	klest_arrange_output_layers(output);
 }
 
@@ -123,18 +118,6 @@ static void server_new_output(struct wl_listener *listener, void *data)
 	output->server = server;
 	output->wlr_output = wlr_output;
 	wlr_output->data = output;
-	const float *bg = (server->config != NULL)
-		? server->config->background_color
-		: KLEST_BACKGROUND_COLOR;
-	output->background = wlr_scene_rect_create(&server->scene->tree,
-		wlr_output->width, wlr_output->height, bg);
-	if (output->background == NULL) {
-		wlr_log(WLR_ERROR, "failed to create output background");
-		free(output);
-		return;
-	}
-	/* Keep the solid fill below every scene layer. */
-	wlr_scene_node_lower_to_bottom(&output->background->node);
 
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);

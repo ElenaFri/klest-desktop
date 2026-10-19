@@ -75,4 +75,13 @@ if have_compositor and wayland_client_dep.found()
         test_layer_client.full_path(),
         meson.current_build_dir(),
     ], timeout: 30)
+
+    if wayland_client_dep.found()
+        test('background-integration', test_compositor, args: [
+            meson.project_build_root() / 'src/klest',
+            meson.project_build_root() / 'src/klest-background',
+            meson.current_build_dir(),
+            '--once',
+        ], timeout: 30)
+    endif
 endif

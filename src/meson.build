@@ -67,6 +67,38 @@ if have_compositor
         dependencies: [wlroots_dep, wayland_server_dep, xkbcommon_dep],
     )
     klest_deps += klest_compositor_dep
+
+    if wayland_client_dep.found()
+        layer_shell_client_header = custom_target(
+            'background-layer-shell-client-protocol.h',
+            input: wlr_layer_shell_xml,
+            output: 'background-layer-shell-client-protocol.h',
+            command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+        )
+        layer_shell_client_code = custom_target(
+            'background-layer-shell-protocol.c',
+            input: wlr_layer_shell_xml,
+            output: 'background-layer-shell-protocol.c',
+            command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+        )
+        xdg_shell_client_code = custom_target(
+            'background-xdg-shell-protocol.c',
+            input: wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
+            output: 'background-xdg-shell-protocol.c',
+            command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+        )
+
+        executable(
+            'klest-background',
+            'components/klest-background.c',
+            layer_shell_client_header,
+            layer_shell_client_code,
+            xdg_shell_client_code,
+            include_directories: [klest_inc, include_directories('.')],
+            dependencies: [klest_config_dep, wayland_client_dep],
+            install: true,
+        )
+    endif
 endif
 
 executable(
