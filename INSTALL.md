@@ -119,7 +119,7 @@ minimize it.
 
 To get a window you need a **Wayland-native** terminal (Klest has no XWayland,
 so X11-only apps won't show). The Debian package installs `foot` as the default
-terminal; press `Alt`+`Return` to open it. For source runs, install `foot` from
+terminal; press `Alt`+`Enter` to open it. For source runs, install `foot` from
 the requirements above; the built-in defaults and `examples/config.toml` already
 use it.
 
@@ -158,7 +158,7 @@ running session bus; only one notification daemon can own the name at a time.
 
 | Shortcut            | Action                        |
 | ------------------- | ----------------------------- |
-| `Alt` + `Return`    | Launch the configured terminal |
+| `Alt` + `Enter`     | Launch the configured terminal |
 | `Alt` + `Space`     | Launch the configured launcher |
 | `Alt` + `Escape`    | Quit Klest                    |
 | `Alt` + `F1`        | Cycle focus between windows    |
@@ -210,11 +210,18 @@ Start or restart the VM with:
 ```sh
 qemu-system-x86_64 \
     -enable-kvm -m 4096 -smp 2 \
-    -vga virtio -display sdl \
+    -vga none -device virtio-vga,xres=1920,yres=1080 -display gtk \
     -device virtio-keyboard-pci -device virtio-tablet-pci \
     -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:2222-:22 \
     -drive file=klest-package-test.qcow2,if=virtio
 ```
+
+Virtio-GPU host acceleration (`virtio-vga-gl` + `gl=on`) is fragile and often
+produces a black screen; software GL in the VM also produces **graphical
+artifacts**. The reliable option is to render with the pixman software backend
+(artifact-free, just slower); it is enabled in the next step. `xres`/`yres` pin
+the virtual display resolution (the virtio-vga default is only 1280x800); on
+real hardware Klest picks the monitor's preferred mode automatically.
 
 Skip overlay creation if `klest-package-test.qcow2` already exists.
 
@@ -222,12 +229,15 @@ Log in on the VM console as `root` / `klest`. If KVM is unavailable, remove `-en
 
 ### Prepare Debian
 
-The cloud kernel lacks the Virtio GPU driver. In the VM, install the standard kernel and remove the cloud kernel so GRUB cannot select it:
+The cloud kernel lacks the Virtio GPU driver. In the VM, install the standard
+kernel and remove the cloud kernel so GRUB cannot select it, and enable the
+pixman software renderer (artifact-free graphics):
 
 ```sh
 apt update
 apt install -y linux-image-amd64 openssh-server vim
 apt-get purge -y linux-image-cloud-amd64 'linux-image-.*-cloud-amd64'
+echo 'WLR_RENDERER=pixman' >> /etc/environment
 ssh-keygen -A
 update-grub
 reboot
@@ -275,7 +285,7 @@ mkdir -p /root/.config/klest
 cp examples/config.toml /root/.config/klest/config.toml
 ```
 
-On the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src/klest`. Press `Alt`+`Return` to open `foot`, then `Alt`+`Escape` to quit.
+On the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src/klest`. Press `Alt`+`Enter` to open `foot`, then `Alt`+`Escape` to quit.
 
 ### Test the Debian packages
 
@@ -292,15 +302,23 @@ apt install -y dbus-daemon
 apt install --reinstall -y /root/klest_0.1.0~alpha.1-1_amd64.deb /root/klest-settings_0.1.0~alpha.1-1_amd64.deb
 ```
 
-From the VM's graphical console, start the packaged session with an isolated
-configuration directory so existing settings remain untouched:
+From the VM's graphical console, start the packaged session:
 
 ```sh
-XDG_CONFIG_HOME=/tmp/klest-package-test dbus-run-session -- klest-session
+dbus-run-session -- klest-session
 ```
 
-The first run should show the background and panel; `Alt`+`Return` opens `foot`,
-and `Alt`+`Space` opens the launcher.
+On first launch `klest-session` copies the example configuration to
+`~/.config/klest/config.toml` (here `/root/.config/klest/config.toml`) without
+overwriting an existing file. This is a **persistent** location you can then
+edit — by hand or with `klest-settings` — with changes applied at the next
+session start. Do not point `XDG_CONFIG_HOME` at `/tmp`: it is wiped on every
+reboot, so settings (including the background colour) would silently revert.
+
+The first run should show the background and panel; `Alt`+`Enter` opens `foot`,
+and `Alt`+`Space` opens the launcher. Note: in the QEMU GTK window the host
+grabs the **left** Alt, so use the **right** Alt to trigger Klest's Alt
+shortcuts (launcher, terminal, workspaces…).
 
 ### Headless testing over SSH
 

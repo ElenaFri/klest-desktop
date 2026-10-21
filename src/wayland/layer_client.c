@@ -142,6 +142,12 @@ bool klest_layer_client_wait_configure(struct klest_layer_client *client)
 	return true;
 }
 
+void klest_layer_client_set_opaque(struct klest_layer_client *client,
+	bool opaque)
+{
+	client->opaque = opaque;
+}
+
 bool klest_layer_client_present(struct klest_layer_client *client,
 	struct wl_buffer *buffer, uint32_t width, uint32_t height)
 {
@@ -152,6 +158,16 @@ bool klest_layer_client_present(struct klest_layer_client *client,
 	}
 	wl_surface_attach(client->surface, buffer, 0, 0);
 	wl_surface_damage(client->surface, 0, 0, (int32_t)width, (int32_t)height);
+	if (client->opaque && client->compositor != NULL) {
+		/* Let the compositor skip everything behind a fully opaque surface. */
+		struct wl_region *region =
+			wl_compositor_create_region(client->compositor);
+		if (region != NULL) {
+			wl_region_add(region, 0, 0, (int32_t)width, (int32_t)height);
+			wl_surface_set_opaque_region(client->surface, region);
+			wl_region_destroy(region);
+		}
+	}
 	wl_surface_commit(client->surface);
 	if (wl_display_roundtrip(client->display) < 0) {
 		fprintf(stderr, "klest-wayland: surface commit failed\n");

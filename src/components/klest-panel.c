@@ -605,6 +605,7 @@ int main(int argc, char *argv[])
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
 			0, KLEST_PANEL_HEIGHT, KLEST_PANEL_HEIGHT, true, false) &&
 		klest_layer_client_wait_configure(&panel.layer);
+	klest_layer_client_set_opaque(&panel.layer, true);
 	if (ok) {
 		ok = run_panel(&panel, once);
 	}

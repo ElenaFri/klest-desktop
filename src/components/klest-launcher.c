@@ -570,6 +570,18 @@ static bool run_launcher(struct launcher *launcher, bool once)
 
 	int display_fd = wl_display_get_fd(launcher->layer.display);
 	while (launcher->running && !launcher->layer.closed) {
+		/* Drain every pending redraw before blocking again. draw_launcher()
+		 * runs a Wayland roundtrip that itself dispatches queued events, so a
+		 * fast keystroke can arrive mid-redraw; servicing redraws in a loop
+		 * here keeps the newest query on screen instead of stalling it until
+		 * the next event wakes poll() — which otherwise feels like a freeze. */
+		while (launcher->needs_redraw) {
+			launcher->needs_redraw = false;
+			if (!draw_launcher(launcher)) {
+				return false;
+			}
+		}
+
 		struct pollfd descriptor = {.fd = display_fd, .events = POLLIN};
 		int result;
 		do {
@@ -581,12 +593,6 @@ static bool run_launcher(struct launcher *launcher, bool once)
 		}
 		if (result > 0 && wl_display_dispatch(launcher->layer.display) < 0) {
 			return true;
-		}
-		if (launcher->needs_redraw) {
-			if (!draw_launcher(launcher)) {
-				return false;
-			}
-			launcher->needs_redraw = false;
 		}
 	}
 	return true;
@@ -678,6 +684,7 @@ int main(int argc, char *argv[])
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
 			0, 0, 0, false, true) &&
 		klest_layer_client_wait_configure(layer);
+	klest_layer_client_set_opaque(layer, true);
 	if (ok) {
 		ok = run_launcher(&launcher, once);
 	}
