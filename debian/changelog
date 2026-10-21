@@ -1,4 +1,4 @@
-klest (0.1.0~alpha.1-1) UNRELEASED; urgency=medium
+klest (0.1.0~alpha.1-1) unstable; urgency=medium
 
   * Prepare the first installable Klest preview.
   * Package the compositor, Wayland session components, and GTK settings tool.

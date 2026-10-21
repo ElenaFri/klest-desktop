@@ -1,5 +1,8 @@
 #!/usr/bin/make -f
 
+# Enable immediate symbol binding for the Debian packages.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
+
 %:
 	dh $@ --buildsystem=meson
 

@@ -33,9 +33,9 @@
 - [x] Install and launch the packages in the Debian QEMU test VM
 - [x] Install alpha packages in a fresh, minimal Debian VM overlay
 - [x] Headless VM + SSH test helper (`scripts/vm-headless.sh`)
-- [ ] Boot that VM and verify the session and default components
+- [x] Boot that VM and verify the session and default components
 - [ ] Re-run Sonar and address release-blocking findings
-- [ ] Tag `v0.1.0-alpha.1` after VM validation
+- [ ] Tag `v0.1.0-alpha.1` after the release checks
 
 ## First milestones
 
