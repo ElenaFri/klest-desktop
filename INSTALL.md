@@ -21,7 +21,7 @@ sudo apt install \
     wayland-protocols \
     libxkbcommon-dev \
     libsystemd-dev dbus-daemon \
-    libgtk-4-dev
+    libgtk-4-dev foot
 ```
 
 - `build-essential` — C compiler (GCC) and core tools (ADR 0001)
@@ -36,6 +36,7 @@ sudo apt install \
 - `libsystemd-dev` — sd-bus, for the notification daemon (ADR 0011)
 - `dbus-daemon` — provides `dbus-run-session` for its integration test
 - `libgtk-4-dev` — GUI tools (ADR 0005)
+- `foot` — Wayland terminal; the `klest` package installs it as a dependency.
 
 ## Build
 
@@ -111,23 +112,13 @@ WAYLAND_DISPLAY=wayland-0 ./build/src/klest-panel
 ```
 
 The panel shows four workspace indicators; the active one is highlighted. Click
-an indicator to switch workspace (or use the keybindings below). To get a window
-you need a **Wayland-native** terminal (Klest has no XWayland, so X11-only apps
-won't show). Install one, e.g.:
+an indicator to switch workspace (or use the keybindings below).
 
-```sh
-sudo apt install foot
-```
-
-Set it up once as your launcher, then press `Alt`+`Return` to open it:
-
-```sh
-mkdir -p ~/.config/klest
-cp examples/config.toml ~/.config/klest/config.toml
-vim ~/.config/klest/config.toml
-```
-
-Change `terminal = ""` to `terminal = "foot"` and save the file.
+To get a window you need a **Wayland-native** terminal (Klest has no XWayland,
+so X11-only apps won't show). The Debian package installs `foot` as the default
+terminal; press `Alt`+`Return` to open it. For source runs, install `foot` from
+the requirements above; the built-in defaults and `examples/config.toml` already
+use it.
 
 Alternatively, launch any Wayland client from another terminal, pointing it at
 Klest's socket:
@@ -203,36 +194,42 @@ sudo virt-customize -a klest-debian.qcow2 \
     --run-command 'systemctl enable systemd-networkd'
 ```
 
-From the image's directory, launch QEMU:
+Create a disposable overlay once; keep it beside the base image:
+
+```sh
+qemu-img create -f qcow2 -F qcow2 -b klest-debian.qcow2 klest-package-test.qcow2
+```
+
+Start or restart the VM with:
 
 ```sh
 qemu-system-x86_64 \
     -enable-kvm -m 4096 -smp 2 \
-    -vga virtio -display gtk,gl=on \
+    -vga virtio -display sdl \
     -device virtio-keyboard-pci -device virtio-tablet-pci \
     -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:2222-:22 \
-    -drive file=klest-debian.qcow2,if=virtio
+    -drive file=klest-package-test.qcow2,if=virtio
 ```
+
+Skip overlay creation if `klest-package-test.qcow2` already exists.
 
 Log in on the VM console as `root` / `klest`. If KVM is unavailable, remove `-enable-kvm`.
 
 ### Prepare Debian
 
-This cloud image's cloud kernel lacks the Virtio GPU driver. Install the standard kernel and reboot:
+The cloud kernel lacks the Virtio GPU driver. In the VM, install the standard kernel and remove the cloud kernel so GRUB cannot select it:
 
 ```sh
 apt update
 apt install -y linux-image-amd64 openssh-server vim
+apt purge -y linux-image-cloud-amd64
+apt autoremove --purge -y
 ssh-keygen -A
+update-grub
 reboot
 ```
 
-At GRUB, select **Advanced options** and boot the standard `-amd64` kernel, not the `-cloud-amd64` one. Confirm `uname -r` no longer contains `cloud`, then check the GPU:
-
-```sh
-modprobe virtio_gpu
-ls /dev/dri
-```
+After reboot, `uname -r` should not contain `cloud`; `modprobe virtio_gpu && ls /dev/dri` should show the GPU device.
 
 ### Transfer the source over SSH
 
@@ -249,7 +246,7 @@ PermitRootLogin yes
 PasswordAuthentication yes
 ```
 
-Then run `sshd -t && systemctl enable --now ssh`. From the host, connect with `ssh -p 2222 root@localhost` (password `klest`). Verify the displayed host-key fingerprint against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` in the VM before accepting it. If the VM was recreated, remove its stale host key with `ssh-keygen -R '[localhost]:2222'` and verify the new fingerprint.
+Apply the change with `sshd -t && systemctl enable ssh && systemctl restart ssh`. From the host, connect with `ssh -p 2222 root@localhost` (password `klest`). Verify the host-key fingerprint using `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` in the VM before accepting it. If the VM was recreated, remove the stale key with `ssh-keygen -R '[localhost]:2222'`.
 
 From the project root on the host, copy the source:
 
@@ -272,10 +269,34 @@ cd /root/klest
 meson setup build && ninja -C build && meson test -C build
 mkdir -p /root/.config/klest
 cp examples/config.toml /root/.config/klest/config.toml
-vim /root/.config/klest/config.toml
 ```
 
-Set `terminal = "foot"`. Then, on the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src/klest`. Press `Alt`+`Return` to open `foot`, then `Alt`+`Escape` to quit.
+On the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src/klest`. Press `Alt`+`Return` to open `foot`, then `Alt`+`Escape` to quit.
+
+### Test the Debian packages
+
+On the host, from the project root, transfer the locally built packages:
+
+```sh
+scp -P 2222 ../klest_0.0.0-1_amd64.deb ../klest-settings_0.0.0-1_amd64.deb root@localhost:/root/
+```
+
+In the VM, install them:
+
+```sh
+apt install -y dbus-daemon
+apt install --reinstall -y /root/klest_0.0.0-1_amd64.deb /root/klest-settings_0.0.0-1_amd64.deb
+```
+
+From the VM's graphical console, start the packaged session with an isolated
+configuration directory so existing settings remain untouched:
+
+```sh
+XDG_CONFIG_HOME=/tmp/klest-package-test dbus-run-session -- klest-session
+```
+
+The first run should show the background and panel; `Alt`+`Return` opens `foot`,
+and `Alt`+`Space` opens the launcher.
 
 ## Tests
 
