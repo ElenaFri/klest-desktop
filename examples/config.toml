@@ -14,9 +14,8 @@ repeat_rate = 25
 repeat_delay = 600
 
 [keybindings]
-# Command launched on Alt+Return. Empty by default (the binding does nothing);
-# set it to a terminal you have installed, e.g. "foot" or "alacritty".
-terminal = ""
+# Command launched on Alt+Return. The Klest package installs foot by default.
+terminal = "foot"
 # Command launched on Alt+Space. The bundled launcher is ready to use.
 launcher = "klest-launcher"
 

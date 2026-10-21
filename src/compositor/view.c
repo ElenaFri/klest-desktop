@@ -7,12 +7,15 @@
 
 #include "view.h"
 #include "workspace.h"
+#include "placement.h"
 
 #include <stdlib.h>
 
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
+#include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -24,6 +27,42 @@ struct klest_popup {
 	struct wl_listener commit;
 	struct wl_listener destroy;
 };
+
+static struct klest_output *output_at_cursor(struct klest_server *server)
+{
+	if (server->cursor != NULL) {
+		struct wlr_output *wlr_output = wlr_output_layout_output_at(
+			server->output_layout, server->cursor->x, server->cursor->y);
+		if (wlr_output != NULL && wlr_output->data != NULL) {
+			return wlr_output->data;
+		}
+	}
+
+	if (wl_list_empty(&server->outputs)) {
+		return NULL;
+	}
+	struct klest_output *output =
+		wl_container_of(server->outputs.next, output, link);
+	return output;
+}
+
+static void place_toplevel_in_usable_area(struct klest_toplevel *toplevel)
+{
+	struct klest_output *output = output_at_cursor(toplevel->server);
+	if (output == NULL) {
+		return;
+	}
+
+	struct wlr_box geometry;
+	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
+	int scene_x;
+	int scene_y;
+	if (klest_window_initial_position(&output->usable_area, &geometry,
+			&scene_x, &scene_y)) {
+		wlr_scene_node_set_position(&toplevel->scene_tree->node,
+			scene_x, scene_y);
+	}
+}
 
 void klest_focus_toplevel(struct klest_toplevel *toplevel)
 {
@@ -191,6 +230,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data)
 		toplevel->server->workspaces.active;
 	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, visible);
 	if (visible) {
+		place_toplevel_in_usable_area(toplevel);
 		klest_focus_toplevel(toplevel);
 	}
 }

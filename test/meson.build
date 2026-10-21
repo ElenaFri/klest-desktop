@@ -18,6 +18,15 @@ test_config = executable(
 test('config', test_config)
 
 if have_compositor and wayland_client_dep.found()
+    test_window_placement = executable(
+        'test-window-placement',
+        'test_window_placement.c',
+        '../src/compositor/placement.c',
+        include_directories: include_directories('../src'),
+        dependencies: wlroots_dep,
+    )
+    test('window-placement', test_window_placement)
+
     xdg_shell_xml = wayland_protocols_dep.get_variable('pkgdatadir') / 'stable/xdg-shell/xdg-shell.xml'
     xdg_shell_client_header = custom_target(
         'xdg-shell-client-protocol.h',

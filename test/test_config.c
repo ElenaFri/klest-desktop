@@ -20,6 +20,7 @@ static void test_defaults(void)
 
 	assert(cfg.keyboard_repeat_rate == 25);
 	assert(cfg.keyboard_repeat_delay == 600);
+	assert(strcmp(cfg.terminal, "foot") == 0);
 	assert(near(cfg.background_color[3], 1.0f));
 	assert(cfg.autostart_count == 0);
 }
@@ -97,7 +98,7 @@ static void test_missing_file_keeps_defaults(void)
 
 	assert(ok); /* a missing file is not an error */
 	assert(cfg.keyboard_repeat_rate == 25);
-	assert(cfg.terminal[0] == '\0');
+	assert(strcmp(cfg.terminal, "foot") == 0);
 	assert(cfg.launcher[0] == '\0');
 }
 

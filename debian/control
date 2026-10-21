@@ -20,7 +20,7 @@ Rules-Requires-Root: no
 
 Package: klest
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: foot, ${shlibs:Depends}, ${misc:Depends}
 Description: lightweight modular Wayland desktop session
  Klest is an early-stage Wayland desktop environment built around a small
  wlroots compositor and independent Wayland components.

@@ -65,6 +65,7 @@ if have_compositor
         'klest-compositor',
         'compositor/server.c',
         'compositor/view.c',
+        'compositor/placement.c',
         'compositor/input.c',
         'compositor/startup.c',
         		'compositor/layer.c',

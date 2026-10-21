@@ -32,7 +32,7 @@ void klest_config_set_defaults(struct klest_config *cfg)
 		sizeof(cfg->background_color));
 	cfg->keyboard_repeat_rate = KLEST_DEFAULT_REPEAT_RATE;
 	cfg->keyboard_repeat_delay = KLEST_DEFAULT_REPEAT_DELAY;
-	cfg->terminal[0] = '\0';
+	snprintf(cfg->terminal, sizeof(cfg->terminal), "foot");
 	cfg->launcher[0] = '\0';
 	cfg->autostart_count = 0;
 }
