@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-alpha.1 — 2026-10-21
+## 0.1.0-alpha.1
 
 First installable preview of Klest for Debian.
 
