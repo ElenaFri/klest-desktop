@@ -69,6 +69,22 @@ subdir('third_party/font8x8')
 subdir('src')
 subdir('test')
 
+if have_compositor
+    install_data(
+        'data/klest.desktop',
+        install_dir: get_option('datadir') / 'wayland-sessions',
+    )
+    install_data(
+        'data/klest-session',
+        install_dir: get_option('bindir'),
+        install_mode: 'rwxr-xr-x',
+    )
+    install_data(
+        'examples/config.toml',
+        install_dir: get_option('datadir') / 'klest',
+    )
+endif
+
 summary({'compositor': have_compositor}, section: 'Features')
 summary({'settings (GTK tool)': have_settings}, section: 'Features')
 summary({'notify (D-Bus daemon)': have_notify}, section: 'Features')

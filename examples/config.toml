@@ -1,9 +1,8 @@
 # Klest configuration — example (ADR 0007).
 #
 # Copy to $XDG_CONFIG_HOME/klest/config.toml (usually ~/.config/klest/config.toml),
-# or point $KLEST_CONFIG at a file of your choice. Every key is optional: Klest
-# works out of the box, and this file only overrides the defaults you set. The
-# values below are the built-in defaults.
+# or point $KLEST_CONFIG at a file of your choice. Every key is optional. This
+# example starts Klest's bundled session components; customize it as needed.
 
 [appearance]
 # Background colour of empty outputs, as "#rrggbb" or "#rrggbbaa".
@@ -18,9 +17,8 @@ repeat_delay = 600
 # Command launched on Alt+Return. Empty by default (the binding does nothing);
 # set it to a terminal you have installed, e.g. "foot" or "alacritty".
 terminal = ""
-# Command launched on Alt+Space, e.g. the bundled "klest-launcher". Empty by
-# default. When running from a build tree, use "./build/src/klest-launcher".
-launcher = ""
+# Command launched on Alt+Space. The bundled launcher is ready to use.
+launcher = "klest-launcher"
 
 [startup]
 # Commands launched once, after the compositor is up. The defaults below bring

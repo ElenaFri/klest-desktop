@@ -1,0 +1,34 @@
+Source: klest
+Section: x11
+Priority: optional
+Maintainer: Elena FRISON <e_gavrilova_frison@zohomail.eu>
+Build-Depends:
+ debhelper-compat (= 13),
+ meson,
+ ninja-build,
+ pkg-config,
+ libwlroots-0.18-dev,
+ libwayland-dev,
+ libwayland-bin,
+ wayland-protocols,
+ libxkbcommon-dev,
+ libsystemd-dev,
+ libgtk-4-dev,
+ dbus-daemon
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+
+Package: klest
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: lightweight modular Wayland desktop session
+ Klest is an early-stage Wayland desktop environment built around a small
+ wlroots compositor and independent Wayland components.
+
+Package: klest-settings
+Architecture: any
+Depends: klest (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: GTK configuration utility for Klest
+ klest-settings provides a graphical editor for Klest's appearance and
+ keyboard settings. It is packaged separately so GTK is not required by the
+ core session.

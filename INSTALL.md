@@ -13,6 +13,7 @@ Klest targets **Debian**. Install the build tools and development libraries:
 sudo apt update
 sudo apt install \
     build-essential \
+    dpkg-dev debhelper \
     meson ninja-build \
     pkg-config \
     libwlroots-0.18-dev \
@@ -24,6 +25,7 @@ sudo apt install \
 ```
 
 - `build-essential` — C compiler (GCC) and core tools (ADR 0001)
+- `dpkg-dev`, `debhelper` — build a local Debian package
 - `meson`, `ninja-build` — build system (ADR 0006)
 - `libwlroots-0.18-dev` — compositor foundation (ADR 0004). The package name is
   **version-specific**; if `0.18` is unavailable, find the right one with
@@ -51,6 +53,26 @@ meson setup build-asan --buildtype=debug -Db_sanitize=address,undefined
 ninja -C build-asan
 meson test -C build-asan
 ```
+
+## Build a local Debian package
+
+On Debian, build the package and run its test suite with:
+
+```sh
+dpkg-buildpackage -us -uc -b
+```
+
+This produces `../klest_0.0.0-1_amd64.deb` and
+`../klest-settings_0.0.0-1_amd64.deb`. Install both with:
+
+```sh
+sudo apt install ../klest_0.0.0-1_amd64.deb ../klest-settings_0.0.0-1_amd64.deb
+```
+
+Choose **Klest** from the display manager's Wayland session list. On first
+launch, `klest-session` copies the shipped example configuration to your user
+configuration directory without replacing an existing file. `klest-settings`
+is separate so the core package does not require GTK.
 
 ## Run
 

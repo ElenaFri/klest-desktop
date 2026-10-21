@@ -26,6 +26,14 @@
 - [x] Add compositor integration tests (headless startup and window lifecycle)
 - [x] Document the Debian build/run requirements
 
+## First installable preview — `0.1.0-alpha.1`
+
+- [x] Build local Debian packages (`klest` core; GTK settings kept separate)
+- [x] Add a Wayland session entry and first-run user configuration
+- [ ] Install and launch the packages in a clean Debian VM
+- [ ] Re-run Sonar and address release-blocking findings
+- [ ] Tag `v0.1.0-alpha.1` after VM validation
+
 ## First milestones
 
 - [x] Minimal wlroots-based compositor that starts and shows an output

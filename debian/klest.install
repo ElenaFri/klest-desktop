@@ -1,0 +1,8 @@
+usr/bin/klest
+usr/bin/klest-session
+usr/bin/klest-background
+usr/bin/klest-panel
+usr/bin/klest-launcher
+usr/bin/klest-notify
+usr/share/wayland-sessions/klest.desktop
+usr/share/klest/config.toml

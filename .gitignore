@@ -87,3 +87,19 @@ Thumbs.db
 *.qcow2
 *.img
 *.iso
+
+# Debian package build artifacts
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/klest/
+/debian/klest-settings/
+/debian/tmp/
+/debian/*.substvars
+/debian/*.debhelper*
+/obj-*/
+*.deb
+*.buildinfo
+*.changes
+*.dsc
+*.tar.*

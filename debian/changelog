@@ -1,0 +1,5 @@
+klest (0.0.0-1) UNRELEASED; urgency=medium
+
+  * Add local Debian packaging for the minimal Klest session.
+
+ -- Elena FRISON <e_gavrilova_frison@zohomail.eu>  Wed, 21 Oct 2026 10:29:04 +0200

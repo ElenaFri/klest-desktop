@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
 	char runtime_dir[4096];
 	int runtime_len = snprintf(runtime_dir, sizeof(runtime_dir),
-		"%s/klest-integration-XXXXXX", argv[3]);
+		"%s/k-XXXXXX", argv[3]);
 	if (runtime_len < 0 || (size_t)runtime_len >= sizeof(runtime_dir)) {
 		fprintf(stderr, "integration test: runtime path too long\n");
 		return 1;

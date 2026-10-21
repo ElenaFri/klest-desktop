@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${KLEST_CONFIG:-}" ]; then
+	if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+		config_home=$XDG_CONFIG_HOME
+	elif [ -n "${HOME:-}" ]; then
+		config_home=$HOME/.config
+	else
+		echo "klest-session: cannot determine the config directory" >&2
+		exit 1
+	fi
+	config_dir=$config_home/klest
+	config_file=$config_dir/config.toml
+	if [ ! -f "$config_file" ]; then
+		(umask 077; mkdir -p "$config_dir"; \
+			cp -n /usr/share/klest/config.toml "$config_file")
+	fi
+fi
+
+exec /usr/bin/klest "$@"

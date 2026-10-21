@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Klest
+Comment=Klest Wayland desktop session
+Exec=klest-session
+TryExec=klest-session
+Type=Application
