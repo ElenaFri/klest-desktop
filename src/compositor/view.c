@@ -161,6 +161,25 @@ static struct klest_output *output_for_toplevel(struct klest_toplevel *toplevel,
 	return output_at_cursor(server);
 }
 
+/* Aligns a maximized toplevel's visible geometry with the output's usable area
+ * (i.e. just below reserved panels). Called on every commit while maximized, so
+ * the window stays flush even after the client changes its geometry offset in
+ * response to the maximized size (e.g. CSD clients adjusting their margins). */
+static void snap_maximized_to_usable_area(struct klest_toplevel *toplevel)
+{
+	struct wlr_box geometry;
+	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
+	struct klest_output *output = output_for_toplevel(toplevel, &geometry);
+	if (output == NULL) {
+		return;
+	}
+	/* The scene node origin is the window's geometry top-left (see
+	 * wlr_scene_xdg_surface_create), so place it straight at the usable area
+	 * without re-applying the geometry offset. */
+	wlr_scene_node_set_position(&toplevel->scene_tree->node,
+		output->usable_area.x, output->usable_area.y);
+}
+
 void klest_toplevel_set_maximized(struct klest_toplevel *toplevel, bool maximized)
 {
 	struct wlr_xdg_toplevel *xdg_toplevel = toplevel->xdg_toplevel;
@@ -170,8 +189,8 @@ void klest_toplevel_set_maximized(struct klest_toplevel *toplevel, bool maximize
 
 	if (changed && maximized) {
 		toplevel->restore_geometry = (struct wlr_box){
-			.x = toplevel->scene_tree->node.x + geometry.x,
-			.y = toplevel->scene_tree->node.y + geometry.y,
+			.x = toplevel->scene_tree->node.x,
+			.y = toplevel->scene_tree->node.y,
 			.width = geometry.width,
 			.height = geometry.height,
 		};
@@ -179,15 +198,13 @@ void klest_toplevel_set_maximized(struct klest_toplevel *toplevel, bool maximize
 		struct klest_output *output = output_for_toplevel(toplevel, &geometry);
 		if (output != NULL) {
 			wlr_scene_node_set_position(&toplevel->scene_tree->node,
-				output->usable_area.x - geometry.x,
-				output->usable_area.y - geometry.y);
+				output->usable_area.x, output->usable_area.y);
 			wlr_xdg_toplevel_set_size(xdg_toplevel,
 				output->usable_area.width, output->usable_area.height);
 		}
 	} else if (changed && toplevel->restore_geometry_valid) {
 		wlr_scene_node_set_position(&toplevel->scene_tree->node,
-			toplevel->restore_geometry.x - geometry.x,
-			toplevel->restore_geometry.y - geometry.y);
+			toplevel->restore_geometry.x, toplevel->restore_geometry.y);
 		wlr_xdg_toplevel_set_size(xdg_toplevel,
 			toplevel->restore_geometry.width, toplevel->restore_geometry.height);
 		toplevel->restore_geometry_valid = false;
@@ -365,6 +382,12 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data)
 	/* On the first commit, let the client pick its own size. */
 	if (toplevel->xdg_toplevel->base->initial_commit) {
 		wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, 0, 0);
+	}
+
+	/* Keep a maximized window flush against the usable area: the client may
+	 * commit a different geometry offset once it applies the maximized size. */
+	if (toplevel->maximized) {
+		snap_maximized_to_usable_area(toplevel);
 	}
 }
 

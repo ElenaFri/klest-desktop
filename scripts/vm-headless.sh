@@ -69,7 +69,8 @@ cmd_install() {
     scp -o StrictHostKeyChecking=accept-new -P "${PORT}" \
         "${deb_core}" "${deb_settings}" "${SSH_HOST}:/root/"
     echo "Installing packages..."
-    ssh_vm "apt-get install -y /root/klest_${version}_amd64.deb /root/klest-settings_${version}_amd64.deb"
+    # --reinstall so a rebuilt package with the same version is still applied.
+    ssh_vm "apt-get install -y --reinstall /root/klest_${version}_amd64.deb /root/klest-settings_${version}_amd64.deb"
 }
 
 cmd_smoke() {
