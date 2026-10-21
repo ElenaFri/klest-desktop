@@ -19,7 +19,7 @@ sudo apt install \
     libwayland-dev libwayland-bin \
     wayland-protocols \
     libxkbcommon-dev \
-    libsystemd-dev \
+    libsystemd-dev dbus-daemon \
     libgtk-4-dev
 ```
 
@@ -32,6 +32,7 @@ sudo apt install \
 - `libwayland-bin` — provides `wayland-scanner`, used to generate protocol headers
 - `libxkbcommon-dev` — keyboard keymaps
 - `libsystemd-dev` — sd-bus, for the notification daemon (ADR 0011)
+- `dbus-daemon` — provides `dbus-run-session` for its integration test
 - `libgtk-4-dev` — GUI tools (ADR 0005)
 
 ## Build

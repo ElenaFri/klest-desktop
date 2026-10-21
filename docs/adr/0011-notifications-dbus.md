@@ -43,7 +43,9 @@ through layer-shell like the panel and background.
   `NotificationClosed` signal. Actions, icons, markup and sound are future work
   and are not advertised as capabilities, so clients degrade gracefully.
 - The transparent full-column overlay avoids dynamic surface resizing: cards are
-  drawn at the top and the rest stays fully transparent and click-through.
-- A `--once` self-test renders a synthetic notification and exits, so the render
-  path is covered by the headless integration test without requiring a session
-  bus in CI.
+  drawn at the top and the rest stays fully transparent and click-through. The
+  surface remains mapped with a transparent buffer when the stack is empty;
+  layer-shell surfaces cannot be unmapped and then reused.
+- A `--once` self-test renders a synthetic notification and exits without a
+  session bus. A separate headless integration test uses a private D-Bus session
+  to exercise `Notify`, explicit close, automatic expiry, and their close reasons.

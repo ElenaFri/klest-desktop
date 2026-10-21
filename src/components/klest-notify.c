@@ -290,11 +290,9 @@ static bool present_cards(struct notify *n, uint32_t width, uint32_t height)
 static bool notify_redraw(struct notify *n)
 {
 	n->needs_redraw = false;
-	if (n->count == 0) {
-		n->mapped_width = 0;
-		n->mapped_height = 0;
-		return klest_layer_client_unmap(&n->layer);
-	}
+	/* Keep the layer surface mapped when the stack is empty. Layer-shell
+	 * surfaces cannot be unmapped and then reused; an empty transparent buffer
+	 * keeps later notifications deliverable without intercepting input. */
 	uint32_t width = n->layer.width;
 	uint32_t height = n->layer.height;
 	if (width == 0 || height == 0 || width > (uint32_t)(INT32_MAX / 4)) {

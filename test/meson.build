@@ -91,5 +91,22 @@ if have_compositor and wayland_client_dep.found()
             meson.current_build_dir(),
             '--once',
         ], timeout: 30)
+
+        dbus_run_session = find_program('dbus-run-session')
+        test_notify_dbus = executable(
+            'test-notify-dbus',
+            'test_notify_dbus.c',
+            dependencies: sdbus_dep,
+        )
+        test('notify-dbus-integration', dbus_run_session, args: [
+            '--',
+            test_compositor.full_path(),
+            meson.project_build_root() / 'src/klest',
+            test_notify_dbus.full_path(),
+            meson.current_build_dir(),
+        ], env: [
+            'KLEST_NOTIFY_TEST_EXECUTABLE=' +
+                (meson.project_build_root() / 'src/klest-notify'),
+        ], timeout: 30)
     endif
 endif
