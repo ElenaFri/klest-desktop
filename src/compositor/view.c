@@ -66,7 +66,7 @@ static void place_toplevel_in_usable_area(struct klest_toplevel *toplevel)
 
 void klest_focus_toplevel(struct klest_toplevel *toplevel)
 {
-	if (toplevel == NULL ||
+	if (toplevel == NULL || toplevel->minimized || !toplevel->mapped ||
 			toplevel->workspace != toplevel->server->workspaces.active) {
 		return;
 	}
@@ -98,6 +98,111 @@ void klest_focus_toplevel(struct klest_toplevel *toplevel)
 		wlr_seat_keyboard_notify_enter(seat, surface, keyboard->keycodes,
 			keyboard->num_keycodes, &keyboard->modifiers);
 	}
+	klest_workspace_focus_changed(server);
+}
+
+static bool toplevel_is_focused(const struct klest_toplevel *toplevel)
+{
+	struct wlr_surface *focused = toplevel->server->seat->keyboard_state.focused_surface;
+	return focused != NULL && wlr_surface_get_root_surface(focused) ==
+		toplevel->xdg_toplevel->base->surface;
+}
+
+static void focus_next_toplevel(struct klest_server *server,
+	const struct klest_toplevel *excluded)
+{
+	struct klest_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		if (toplevel != excluded && !toplevel->minimized &&
+				toplevel->workspace == server->workspaces.active) {
+			klest_focus_toplevel(toplevel);
+			return;
+		}
+	}
+	wlr_seat_keyboard_notify_clear_focus(server->seat);
+}
+
+void klest_toplevel_set_minimized(struct klest_toplevel *toplevel, bool minimized)
+{
+	if (toplevel->minimized == minimized) {
+		return;
+	}
+	struct klest_server *server = toplevel->server;
+	bool was_focused = toplevel_is_focused(toplevel);
+	if (minimized && was_focused) {
+		wlr_xdg_toplevel_set_activated(toplevel->xdg_toplevel, false);
+		wlr_seat_keyboard_notify_clear_focus(server->seat);
+		wlr_seat_pointer_clear_focus(server->seat);
+	}
+	toplevel->minimized = minimized;
+	bool visible = toplevel->mapped && !minimized &&
+		toplevel->workspace == server->workspaces.active;
+	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, visible);
+	if (minimized && was_focused) {
+		focus_next_toplevel(server, toplevel);
+	}
+	klest_workspace_toplevel_changed(toplevel);
+	klest_workspace_focus_changed(server);
+}
+
+static struct klest_output *output_for_toplevel(struct klest_toplevel *toplevel,
+	const struct wlr_box *geometry)
+{
+	struct klest_server *server = toplevel->server;
+	double center_x = toplevel->scene_tree->node.x + geometry->x +
+		geometry->width / 2.0;
+	double center_y = toplevel->scene_tree->node.y + geometry->y +
+		geometry->height / 2.0;
+	struct wlr_output *wlr_output = wlr_output_layout_output_at(
+		server->output_layout, center_x, center_y);
+	if (wlr_output != NULL && wlr_output->data != NULL) {
+		return wlr_output->data;
+	}
+	return output_at_cursor(server);
+}
+
+void klest_toplevel_set_maximized(struct klest_toplevel *toplevel, bool maximized)
+{
+	struct wlr_xdg_toplevel *xdg_toplevel = toplevel->xdg_toplevel;
+	bool changed = toplevel->maximized != maximized;
+	struct wlr_box geometry;
+	wlr_xdg_surface_get_geometry(xdg_toplevel->base, &geometry);
+
+	if (changed && maximized) {
+		toplevel->restore_geometry = (struct wlr_box){
+			.x = toplevel->scene_tree->node.x + geometry.x,
+			.y = toplevel->scene_tree->node.y + geometry.y,
+			.width = geometry.width,
+			.height = geometry.height,
+		};
+		toplevel->restore_geometry_valid = true;
+		struct klest_output *output = output_for_toplevel(toplevel, &geometry);
+		if (output != NULL) {
+			wlr_scene_node_set_position(&toplevel->scene_tree->node,
+				output->usable_area.x - geometry.x,
+				output->usable_area.y - geometry.y);
+			wlr_xdg_toplevel_set_size(xdg_toplevel,
+				output->usable_area.width, output->usable_area.height);
+		}
+	} else if (changed && toplevel->restore_geometry_valid) {
+		wlr_scene_node_set_position(&toplevel->scene_tree->node,
+			toplevel->restore_geometry.x - geometry.x,
+			toplevel->restore_geometry.y - geometry.y);
+		wlr_xdg_toplevel_set_size(xdg_toplevel,
+			toplevel->restore_geometry.width, toplevel->restore_geometry.height);
+		toplevel->restore_geometry_valid = false;
+	}
+
+	toplevel->maximized = maximized;
+	wlr_xdg_toplevel_set_maximized(xdg_toplevel, maximized);
+	if (toplevel->mapped) {
+		klest_workspace_toplevel_changed(toplevel);
+	}
+}
+
+void klest_toplevel_toggle_maximized(struct klest_toplevel *toplevel)
+{
+	klest_toplevel_set_maximized(toplevel, !toplevel->maximized);
 }
 
 struct klest_toplevel *klest_toplevel_at(struct klest_server *server,
@@ -226,13 +331,15 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data)
 	(void)data;
 
 	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
-	bool visible = toplevel->workspace ==
+	toplevel->mapped = true;
+	bool visible = !toplevel->minimized && toplevel->workspace ==
 		toplevel->server->workspaces.active;
 	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, visible);
 	if (visible) {
 		place_toplevel_in_usable_area(toplevel);
 		klest_focus_toplevel(toplevel);
 	}
+	klest_workspace_toplevel_mapped(toplevel);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data)
@@ -243,7 +350,11 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data)
 	if (toplevel == toplevel->server->grabbed_toplevel) {
 		klest_reset_cursor_mode(toplevel->server);
 	}
-	wl_list_remove(&toplevel->link);
+	if (toplevel->mapped) {
+		klest_workspace_toplevel_unmapped(toplevel);
+		toplevel->mapped = false;
+		wl_list_remove(&toplevel->link);
+	}
 }
 
 static void xdg_toplevel_commit(struct wl_listener *listener, void *data)
@@ -269,7 +380,9 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data)
 	wl_list_remove(&toplevel->request_move.link);
 	wl_list_remove(&toplevel->request_resize.link);
 	wl_list_remove(&toplevel->request_maximize.link);
+	wl_list_remove(&toplevel->request_minimize.link);
 	wl_list_remove(&toplevel->request_fullscreen.link);
+	wl_list_remove(&toplevel->set_title.link);
 	free(toplevel);
 }
 
@@ -294,10 +407,25 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener, void *da
 	struct klest_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_maximize);
 	(void)data;
-	/* Not implemented yet: acknowledge with a configure, as the protocol wants. */
-	if (toplevel->xdg_toplevel->base->initialized) {
-		wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
-	}
+	klest_toplevel_set_maximized(toplevel,
+		toplevel->xdg_toplevel->requested.maximized);
+}
+
+static void xdg_toplevel_request_minimize(struct wl_listener *listener,
+	void *data)
+{
+	struct klest_toplevel *toplevel =
+		wl_container_of(listener, toplevel, request_minimize);
+	(void)data;
+	klest_toplevel_set_minimized(toplevel, true);
+}
+
+static void xdg_toplevel_set_title(struct wl_listener *listener, void *data)
+{
+	struct klest_toplevel *toplevel =
+		wl_container_of(listener, toplevel, set_title);
+	(void)data;
+	klest_workspace_toplevel_changed(toplevel);
 }
 
 static void xdg_toplevel_request_fullscreen(struct wl_listener *listener, void *data)
@@ -322,6 +450,7 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data)
 	}
 	toplevel->server = server;
 	toplevel->xdg_toplevel = xdg_toplevel;
+	toplevel->id = wl_display_next_serial(server->display);
 	toplevel->workspace = server->workspaces.active;
 	toplevel->scene_tree = wlr_scene_xdg_surface_create(
 		server->toplevel_tree, xdg_toplevel->base);
@@ -343,6 +472,11 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data)
 	toplevel->request_maximize.notify = xdg_toplevel_request_maximize;
 	wl_signal_add(&xdg_toplevel->events.request_maximize,
 		&toplevel->request_maximize);
+	toplevel->request_minimize.notify = xdg_toplevel_request_minimize;
+	wl_signal_add(&xdg_toplevel->events.request_minimize,
+		&toplevel->request_minimize);
+	toplevel->set_title.notify = xdg_toplevel_set_title;
+	wl_signal_add(&xdg_toplevel->events.set_title, &toplevel->set_title);
 	toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen,
 		&toplevel->request_fullscreen);

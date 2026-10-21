@@ -21,6 +21,7 @@
 #include <wayland-client-protocol.h>
 
 #include "klest-workspace-v1-client-protocol.h"
+#include "wayland/font.h"
 #include "wayland/layer_client.h"
 #include "wayland/shm.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
@@ -30,12 +31,20 @@
 #define KLEST_WS_ORIGIN_X 96U
 #define KLEST_WS_BOX_WIDTH 26U
 #define KLEST_PANEL_MAX_WORKSPACES 9U
+#define KLEST_WINDOW_ORIGIN_X (KLEST_WS_ORIGIN_X + \
+	KLEST_PANEL_MAX_WORKSPACES * KLEST_WS_BOX_WIDTH + 8U)
+#define KLEST_WINDOW_BOX_WIDTH 144U
+#define KLEST_WINDOW_LABEL_CHARS 14U
+#define KLEST_WINDOW_TITLE_LENGTH 128U
 
-/* A simple ARGB8888 drawing target. */
-struct canvas {
-	uint32_t *pixels;
-	uint32_t width;
-	uint32_t height;
+struct panel_window {
+	struct panel_window *next;
+	uint32_t id;
+	uint32_t workspace;
+	char title[KLEST_WINDOW_TITLE_LENGTH];
+	bool active;
+	bool minimized;
+	bool maximized;
 };
 
 struct panel {
@@ -49,30 +58,12 @@ struct panel {
 	uint32_t mapped_height;
 	uint32_t workspace_count;
 	uint32_t active_workspace;
+	struct panel_window *windows;
 	double pointer_x;
 	bool needs_redraw;
 	time_t drawn_minute;
 };
 
-static const char GLYPH_KEYS[] = "KLEST0123456789:";
-static const uint8_t GLYPH_ROWS[][7] = {
-	{0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11}, /* K */
-	{0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f}, /* L */
-	{0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x1f}, /* E */
-	{0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e}, /* S */
-	{0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, /* T */
-	{0x0e, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0e}, /* 0 */
-	{0x04, 0x0c, 0x04, 0x04, 0x04, 0x04, 0x0e}, /* 1 */
-	{0x0e, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1f}, /* 2 */
-	{0x1e, 0x01, 0x01, 0x0e, 0x01, 0x01, 0x1e}, /* 3 */
-	{0x02, 0x06, 0x0a, 0x12, 0x1f, 0x02, 0x02}, /* 4 */
-	{0x1f, 0x10, 0x10, 0x1e, 0x01, 0x01, 0x1e}, /* 5 */
-	{0x0e, 0x10, 0x10, 0x1e, 0x11, 0x11, 0x0e}, /* 6 */
-	{0x1f, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, /* 7 */
-	{0x0e, 0x11, 0x11, 0x0e, 0x11, 0x11, 0x0e}, /* 8 */
-	{0x0e, 0x11, 0x11, 0x0f, 0x01, 0x01, 0x0e}, /* 9 */
-	{0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00}, /* : */
-};
 
 static bool get_clock_text(char text[6], time_t *minute)
 {
@@ -87,43 +78,16 @@ static bool get_clock_text(char text[6], time_t *minute)
 	return true;
 }
 
-static void fill_rect(const struct canvas *canvas, uint32_t x, uint32_t y,
-	uint32_t w, uint32_t h, uint32_t color)
+static void fill_rect(const struct klest_canvas *canvas, uint32_t x,
+	uint32_t y, uint32_t w, uint32_t h, uint32_t color)
 {
-	for (uint32_t py = y; py < y + h && py < canvas->height; py++) {
-		for (uint32_t px = x; px < x + w && px < canvas->width; px++) {
-			canvas->pixels[(size_t)py * canvas->width + px] = color;
-		}
-	}
+	klest_canvas_fill(canvas, x, y, w, h, color);
 }
 
-static void draw_glyph(const struct canvas *canvas, char character,
-	uint32_t x, uint32_t y, uint32_t color)
+static void draw_text(const struct klest_canvas *canvas, const char *text,
+	uint32_t x, uint32_t y, uint32_t scale, uint32_t color)
 {
-	const char *key = strchr(GLYPH_KEYS, character);
-	if (key == NULL) {
-		return;
-	}
-	size_t glyph_index = (size_t)(key - GLYPH_KEYS);
-	for (uint32_t row = 0; row < 7; row++) {
-		for (uint32_t column = 0; column < 5; column++) {
-			if ((GLYPH_ROWS[glyph_index][row] & (1U << (4U - column))) == 0) {
-				continue;
-			}
-			fill_rect(canvas, x + column * KLEST_GLYPH_SCALE,
-				y + row * KLEST_GLYPH_SCALE,
-				KLEST_GLYPH_SCALE, KLEST_GLYPH_SCALE, color);
-		}
-	}
-}
-
-static void draw_text(const struct canvas *canvas, const char *text,
-	uint32_t x, uint32_t y, uint32_t color)
-{
-	for (const char *p = text; *p != '\0'; p++) {
-		draw_glyph(canvas, *p, x, y, color);
-		x += 6U * KLEST_GLYPH_SCALE;
-	}
+	klest_font_draw(canvas, text, x, y, scale, color);
 }
 
 /* Returns the number of workspace indicators that fit, capped for safety. */
@@ -135,7 +99,7 @@ static uint32_t visible_workspaces(const struct panel *panel)
 }
 
 static void draw_workspaces(const struct panel *panel,
-	const struct canvas *canvas, uint32_t text_y)
+	const struct klest_canvas *canvas, uint32_t text_y)
 {
 	const uint32_t active_bg = 0xff5c8fe8U;
 	const uint32_t box_bg = 0xff2a2d3eU;
@@ -150,8 +114,89 @@ static void draw_workspaces(const struct panel *panel,
 		fill_rect(canvas, box_x + 1U, 4U, KLEST_WS_BOX_WIDTH - 2U,
 			canvas->height - 8U, bg);
 		char label[2] = {(char)('1' + i), '\0'};
-		draw_text(canvas, label, box_x + 8U, text_y, text_color);
+		draw_text(canvas, label, box_x + 8U, text_y,
+			KLEST_GLYPH_SCALE, text_color);
 	}
+}
+
+static uint32_t panel_clock_x(uint32_t width)
+{
+	uint32_t clock_width = klest_font_width("00:00", KLEST_GLYPH_SCALE);
+	return width > clock_width + 16U ? width - clock_width - 16U : 0U;
+}
+
+static void draw_windows(const struct panel *panel,
+	const struct klest_canvas *canvas, uint32_t clock_x)
+{
+	uint32_t x = KLEST_WINDOW_ORIGIN_X;
+	uint32_t right = clock_x > 8U ? clock_x - 8U : 0U;
+	for (const struct panel_window *window = panel->windows;
+			window != NULL; window = window->next) {
+		if (window->workspace != panel->active_workspace) {
+			continue;
+		}
+		if (x + KLEST_WINDOW_BOX_WIDTH > right) {
+			break;
+		}
+		uint32_t background = window->active ? 0xff5c8fe8U :
+			(window->minimized ? 0xff20222cU : 0xff2a2d3eU);
+		fill_rect(canvas, x, 4U, KLEST_WINDOW_BOX_WIDTH - 4U,
+			canvas->height - 8U, background);
+		char label[KLEST_WINDOW_LABEL_CHARS + 1U];
+		size_t length = 0;
+		while (length < KLEST_WINDOW_LABEL_CHARS &&
+				window->title[length] != '\0') {
+			label[length] = window->title[length];
+			length++;
+		}
+		if (length == KLEST_WINDOW_LABEL_CHARS &&
+				window->title[length] != '\0') {
+			label[length - 3U] = '.';
+			label[length - 2U] = '.';
+			label[length - 1U] = '.';
+		}
+		label[length] = '\0';
+		uint32_t text_width = klest_font_width(label, 1U);
+		uint32_t text_x = x + (KLEST_WINDOW_BOX_WIDTH - text_width) / 2U;
+		uint32_t text_y = (canvas->height - KLEST_FONT_GLYPH) / 2U;
+		draw_text(canvas, label, text_x, text_y, 1U, 0xffe8eaf5U);
+		x += KLEST_WINDOW_BOX_WIDTH;
+	}
+}
+
+static struct panel_window *window_by_id(struct panel *panel, uint32_t id)
+{
+	for (struct panel_window *window = panel->windows;
+			window != NULL; window = window->next) {
+		if (window->id == id) {
+			return window;
+		}
+	}
+	return NULL;
+}
+
+static struct panel_window *window_at(struct panel *panel, double pointer_x)
+{
+	uint32_t x = KLEST_WINDOW_ORIGIN_X;
+	uint32_t right = panel_clock_x(panel->layer.width);
+	if (right > 8U) {
+		right -= 8U;
+	}
+	for (struct panel_window *window = panel->windows;
+			window != NULL; window = window->next) {
+		if (window->workspace != panel->active_workspace) {
+			continue;
+		}
+		if (x + KLEST_WINDOW_BOX_WIDTH > right) {
+			break;
+		}
+		if (pointer_x >= (double)x &&
+				pointer_x < (double)(x + KLEST_WINDOW_BOX_WIDTH - 4U)) {
+			return window;
+		}
+		x += KLEST_WINDOW_BOX_WIDTH;
+	}
+	return NULL;
 }
 
 static bool draw_panel(struct panel *panel)
@@ -169,7 +214,8 @@ static bool draw_panel(struct panel *panel)
 		fprintf(stderr, "klest-panel: cannot allocate drawing buffer\n");
 		return false;
 	}
-	struct canvas canvas = {.pixels = pixels, .width = width, .height = height};
+	struct klest_canvas canvas = {
+		.pixels = pixels, .width = width, .height = height};
 	for (size_t i = 0; i < pixel_count; i++) {
 		pixels[i] = 0xff1a1c29U;
 	}
@@ -181,11 +227,11 @@ static bool draw_panel(struct panel *panel)
 	}
 	const uint32_t text_color = 0xffe8eaf5U;
 	uint32_t text_y = (height - 7U * KLEST_GLYPH_SCALE) / 2U;
-	draw_text(&canvas, "KLEST", 16U, text_y, text_color);
+	draw_text(&canvas, "KLEST", 16U, text_y, KLEST_GLYPH_SCALE, text_color);
 	draw_workspaces(panel, &canvas, text_y);
-	uint32_t clock_width = 5U * 6U * KLEST_GLYPH_SCALE;
-	uint32_t clock_x = width > clock_width + 16U ? width - clock_width - 16U : 0U;
-	draw_text(&canvas, clock_text, clock_x, text_y, text_color);
+	uint32_t clock_x = panel_clock_x(width);
+	draw_text(&canvas, clock_text, clock_x, text_y, KLEST_GLYPH_SCALE, text_color);
+	draw_windows(panel, &canvas, clock_x);
 
 	fill_rect(&canvas, 0U, height - 2U, width, 2U, 0xff5c8fe8U);
 
@@ -222,8 +268,54 @@ static void workspace_handle_state(void *data,
 	panel->needs_redraw = true;
 }
 
+static void workspace_handle_window(void *data,
+	struct klest_workspace_manager_v1 *manager, // NOSONAR: Wayland callback ABI.
+	uint32_t id, uint32_t workspace, const char *title, uint32_t active,
+	uint32_t minimized, uint32_t maximized)
+{
+	struct panel *panel = data;
+	(void)manager;
+	struct panel_window *window = window_by_id(panel, id);
+	if (window == NULL) {
+		window = calloc(1, sizeof(*window));
+		if (window == NULL) {
+			return;
+		}
+		window->id = id;
+		window->next = panel->windows;
+		panel->windows = window;
+	}
+	window->workspace = workspace;
+	snprintf(window->title, sizeof(window->title), "%s", title);
+	window->active = active != 0;
+	window->minimized = minimized != 0;
+	window->maximized = maximized != 0;
+	panel->needs_redraw = true;
+}
+
+static void workspace_handle_window_closed(void *data,
+	struct klest_workspace_manager_v1 *manager, // NOSONAR: Wayland callback ABI.
+	uint32_t id)
+{
+	struct panel *panel = data;
+	(void)manager;
+	struct panel_window **link = &panel->windows;
+	while (*link != NULL) {
+		if ((*link)->id == id) {
+			struct panel_window *dead = *link;
+			*link = dead->next;
+			free(dead);
+			panel->needs_redraw = true;
+			return;
+		}
+		link = &(*link)->next;
+	}
+}
+
 static const struct klest_workspace_manager_v1_listener workspace_listener = {
 	.state = workspace_handle_state,
+	.window = workspace_handle_window,
+	.window_closed = workspace_handle_window_closed,
 };
 
 /* Maps a pointer x coordinate to a workspace index, or -1 if none. */
@@ -289,6 +381,21 @@ static void pointer_handle_button(void *data,
 	if (index >= 0) {
 		klest_workspace_manager_v1_activate(panel->workspace_manager,
 			(uint32_t)index);
+		return;
+	}
+	if (wl_proxy_get_version((struct wl_proxy *)panel->workspace_manager) < 2) {
+		return;
+	}
+	struct panel_window *window = window_at(panel, panel->pointer_x);
+	if (window == NULL) {
+		return;
+	}
+	if (window->active && !window->minimized) {
+		klest_workspace_manager_v1_minimize_toplevel(
+			panel->workspace_manager, window->id);
+	} else {
+		klest_workspace_manager_v1_activate_toplevel(
+			panel->workspace_manager, window->id);
 	}
 }
 
@@ -345,10 +452,10 @@ static void registry_global(void *data, struct wl_registry *registry,
 	uint32_t name, const char *interface, uint32_t version)
 {
 	struct panel *panel = data;
-	(void)version;
 	if (strcmp(interface, klest_workspace_manager_v1_interface.name) == 0) {
+		uint32_t bind_version = version < 2U ? version : 2U;
 		panel->workspace_manager = wl_registry_bind(registry, name,
-			&klest_workspace_manager_v1_interface, 1);
+			&klest_workspace_manager_v1_interface, bind_version);
 		if (panel->workspace_manager != NULL) {
 			klest_workspace_manager_v1_add_listener(
 				panel->workspace_manager, &workspace_listener, panel);
@@ -449,6 +556,12 @@ static bool run_panel(struct panel *panel, bool once)
 
 static void panel_finish(struct panel *panel)
 {
+	struct panel_window *window = panel->windows;
+	while (window != NULL) {
+		struct panel_window *next = window->next;
+		free(window);
+		window = next;
+	}
 	if (panel->pointer != NULL) {
 		wl_pointer_destroy(panel->pointer);
 	}

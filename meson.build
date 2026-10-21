@@ -1,7 +1,7 @@
 project(
     'klest',
     'c',
-    version: '0.0.0',
+    version: '0.1.0-alpha.1',
     license: 'GPL-3.0-or-later',
     meson_version: '>= 0.60.0',
     default_options: [

@@ -30,7 +30,10 @@
 
 - [x] Build local Debian packages (`klest` core; GTK settings kept separate)
 - [x] Add a Wayland session entry and first-run user configuration
-- [ ] Install and launch the packages in a clean Debian VM
+- [x] Install and launch the packages in the Debian QEMU test VM
+- [x] Install alpha packages in a fresh, minimal Debian VM overlay
+- [x] Headless VM + SSH test helper (`scripts/vm-headless.sh`)
+- [ ] Boot that VM and verify the session and default components
 - [ ] Re-run Sonar and address release-blocking findings
 - [ ] Tag `v0.1.0-alpha.1` after VM validation
 
@@ -51,6 +54,7 @@ that anchors to the screen through layer-shell.
 - [x] `klest-background` — standalone solid-colour layer-shell client (image loading remains future work)
 - [x] `klest-panel` — top bar with clock
 - [x] Workspace model and controls in the compositor and panel (ADR 0010)
+- [x] Window minimize/maximize (`Alt`+`F9`/`F10`) and a panel window list (click to focus, restore or minimize)
 - [x] `klest-launcher` — application launcher
 - [x] Notifications daemon (`klest-notify`, `org.freedesktop.Notifications` over D-Bus — ADR 0011)
 - [x] Session startup: the compositor launches its components via `[startup] autostart` (ADR 0009)

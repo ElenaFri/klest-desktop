@@ -63,11 +63,11 @@ On Debian, build the package and run its test suite with:
 dpkg-buildpackage -us -uc -b
 ```
 
-This produces `../klest_0.0.0-1_amd64.deb` and
-`../klest-settings_0.0.0-1_amd64.deb`. Install both with:
+This produces `../klest_0.1.0~alpha.1-1_amd64.deb` and
+`../klest-settings_0.1.0~alpha.1-1_amd64.deb`. Install both with:
 
 ```sh
-sudo apt install ../klest_0.0.0-1_amd64.deb ../klest-settings_0.0.0-1_amd64.deb
+sudo apt install ../klest_0.1.0~alpha.1-1_amd64.deb ../klest-settings_0.1.0~alpha.1-1_amd64.deb
 ```
 
 Choose **Klest** from the display manager's Wayland session list. On first
@@ -112,7 +112,10 @@ WAYLAND_DISPLAY=wayland-0 ./build/src/klest-panel
 ```
 
 The panel shows four workspace indicators; the active one is highlighted. Click
-an indicator to switch workspace (or use the keybindings below).
+an indicator to switch workspace (or use the keybindings below). To the right of
+the indicators the panel lists the windows of the active workspace: click a
+window to focus it (or restore it if minimized), or click the focused window to
+minimize it.
 
 To get a window you need a **Wayland-native** terminal (Klest has no XWayland,
 so X11-only apps won't show). The Debian package installs `foot` as the default
@@ -159,6 +162,8 @@ running session bus; only one notification daemon can own the name at a time.
 | `Alt` + `Space`     | Launch the configured launcher |
 | `Alt` + `Escape`    | Quit Klest                    |
 | `Alt` + `F1`        | Cycle focus between windows    |
+| `Alt` + `F9`        | Minimize the focused window    |
+| `Alt` + `F10`       | Maximize / restore the focused window |
 | `Alt` + `1`…`4`      | Switch to workspace 1–4        |
 | `Alt` + `Shift` + `1`…`4` | Move the focused window to workspace 1–4 |
 | `Alt` + left-drag   | Move the window under the cursor (client-initiated) |
@@ -222,8 +227,7 @@ The cloud kernel lacks the Virtio GPU driver. In the VM, install the standard ke
 ```sh
 apt update
 apt install -y linux-image-amd64 openssh-server vim
-apt purge -y linux-image-cloud-amd64
-apt autoremove --purge -y
+apt-get purge -y linux-image-cloud-amd64 'linux-image-.*-cloud-amd64'
 ssh-keygen -A
 update-grub
 reboot
@@ -264,7 +268,7 @@ mkdir -p /root/klest
 tar -xzf /root/klest.tar.gz -C /root/klest
 apt install -y build-essential meson ninja-build pkg-config \
     libwlroots-0.18-dev libwayland-dev libwayland-bin wayland-protocols \
-    libxkbcommon-dev libgtk-4-dev foot
+    libxkbcommon-dev libsystemd-dev dbus-daemon libgtk-4-dev foot
 cd /root/klest
 meson setup build && ninja -C build && meson test -C build
 mkdir -p /root/.config/klest
@@ -278,14 +282,14 @@ On the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src
 On the host, from the project root, transfer the locally built packages:
 
 ```sh
-scp -P 2222 ../klest_0.0.0-1_amd64.deb ../klest-settings_0.0.0-1_amd64.deb root@localhost:/root/
+scp -P 2222 ../klest_0.1.0~alpha.1-1_amd64.deb ../klest-settings_0.1.0~alpha.1-1_amd64.deb root@localhost:/root/
 ```
 
 In the VM, install them:
 
 ```sh
 apt install -y dbus-daemon
-apt install --reinstall -y /root/klest_0.0.0-1_amd64.deb /root/klest-settings_0.0.0-1_amd64.deb
+apt install --reinstall -y /root/klest_0.1.0~alpha.1-1_amd64.deb /root/klest-settings_0.1.0~alpha.1-1_amd64.deb
 ```
 
 From the VM's graphical console, start the packaged session with an isolated
@@ -297,6 +301,32 @@ XDG_CONFIG_HOME=/tmp/klest-package-test dbus-run-session -- klest-session
 
 The first run should show the background and panel; `Alt`+`Return` opens `foot`,
 and `Alt`+`Space` opens the launcher.
+
+### Headless testing over SSH
+
+For automated runs without a graphical console, [`scripts/vm-headless.sh`](scripts/vm-headless.sh)
+boots the VM with `-display none`, waits for SSH, installs the locally built
+packages, and smoke-tests the compositor and its components.
+
+It needs key-based SSH. Inject your public key into the overlay once (VM off):
+
+```sh
+sudo virt-customize -a klest-package-test.qcow2 \
+    --ssh-inject root:file:$HOME/.ssh/id_ed25519.pub \
+    --run-command 'systemctl enable ssh'
+```
+
+Then build the packages (`dpkg-buildpackage -us -uc -b`) and run:
+
+```sh
+scripts/vm-headless.sh all   # start -> install -> smoke -> stop
+```
+
+Individual steps are also available: `start`, `install`, `smoke`, `ssh`, `stop`.
+Override the image with `KLEST_VM_IMAGE`. The smoke test runs the compositor
+with the headless backend and Pixman renderer (no GPU needed), then launches
+`klest-panel --once` and `klest-background --once`, printing `PANEL_OK` and
+`BACKGROUND_OK` on success.
 
 ## Tests
 

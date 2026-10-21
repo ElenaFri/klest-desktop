@@ -24,9 +24,15 @@ and *request* a switch.
   compositor: `Alt`+`1..4` activates, `Alt`+`Shift`+`1..4` moves the focused
   window.
 - A small **Klest-specific Wayland protocol**, `klest_workspace_manager_v1`,
-  exposes the state. It has one event (`state`: count + active index) and one
-  request (`activate`). The panel binds it, reflects the active workspace, and
+  exposes the state. The panel binds it, reflects the active workspace, and
   switches on click.
+  - `v1` carries the workspace `state` event (count + active index) and the
+    `activate` request.
+  - `v2` adds a per-window `window`/`window_closed` event pair (id, workspace,
+    title, active/minimized/maximized flags) and the `activate_toplevel`,
+    `minimize_toplevel` and `toggle_maximize_toplevel` requests, so the panel can
+    show a window list and act on it. `Alt`+`F9` minimizes and `Alt`+`F10`
+    toggles maximize in the compositor.
 
 ## Consequences
 
@@ -34,7 +40,7 @@ and *request* a switch.
   0009: components still use standard protocols by default, and a custom protocol
   is introduced only for state that standard protocols cannot carry. Custom
   protocols are idiomatic in the wlroots ecosystem (cf. wlr-* protocols).
-- The protocol is intentionally tiny and versioned (`v1`), so it can grow
+- The protocol is intentionally tiny and versioned (now `v2`), so it can grow
   (per-workspace names, dynamic count) without breaking existing clients.
 - Panel and compositor stay independent: the panel degrades gracefully when the
   global is absent, and the model is covered by the headless integration test.

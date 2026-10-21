@@ -1,5 +1,7 @@
-klest (0.0.0-1) UNRELEASED; urgency=medium
+klest (0.1.0~alpha.1-1) UNRELEASED; urgency=medium
 
-  * Add local Debian packaging for the minimal Klest session.
+  * Prepare the first installable Klest preview.
+  * Package the compositor, Wayland session components, and GTK settings tool.
+  * Install foot as the default terminal for new sessions.
 
- -- Elena FRISON <e_gavrilova_frison@zohomail.eu>  Wed, 21 Oct 2026 10:29:04 +0200
+ -- Elena FRISON <e_gavrilova_frison@zohomail.eu>  Wed, 21 Oct 2026 17:10:40 +0200

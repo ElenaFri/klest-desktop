@@ -180,6 +180,12 @@ static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 	case XKB_KEY_space:
 		spawn_configured(cfg != NULL ? cfg->launcher : NULL, "launcher");
 		return true;
+	case XKB_KEY_F9:
+		klest_workspace_minimize_focused(server);
+		return true;
+	case XKB_KEY_F10:
+		klest_workspace_toggle_maximize_focused(server);
+		return true;
 	case XKB_KEY_F1: {
 		struct wlr_surface *focused_surface =
 			server->seat->keyboard_state.focused_surface;
@@ -189,6 +195,7 @@ static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
 		struct klest_toplevel *toplevel;
 		wl_list_for_each(toplevel, &server->toplevels, link) {
 			if (toplevel->workspace == server->workspaces.active &&
+					!toplevel->minimized &&
 					toplevel->xdg_toplevel->base->surface != focused_surface) {
 				klest_focus_toplevel(toplevel);
 				return true;

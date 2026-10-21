@@ -16,7 +16,13 @@ struct klest_toplevel {
 	struct klest_server *server;
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	struct wlr_scene_tree *scene_tree;
+	struct wlr_box restore_geometry;
+	uint32_t id;
 	uint32_t workspace;
+	bool mapped;
+	bool minimized;
+	bool maximized;
+	bool restore_geometry_valid;
 
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -25,11 +31,16 @@ struct klest_toplevel {
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
 	struct wl_listener request_maximize;
+	struct wl_listener request_minimize;
 	struct wl_listener request_fullscreen;
+	struct wl_listener set_title;
 };
 
 /* Gives keyboard focus (and raises) the given toplevel. NULL is a no-op. */
 void klest_focus_toplevel(struct klest_toplevel *toplevel);
+void klest_toplevel_set_minimized(struct klest_toplevel *toplevel, bool minimized);
+void klest_toplevel_toggle_maximized(struct klest_toplevel *toplevel);
+void klest_toplevel_set_maximized(struct klest_toplevel *toplevel, bool maximized);
 
 /* Returns the toplevel whose surface is at the given layout coordinates, along
  * with the surface and its surface-local coordinates. NULL if none. */

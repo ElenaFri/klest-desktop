@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <protocol name="klest_workspace_v1">
-  <interface name="klest_workspace_manager_v1" version="1">
+  <interface name="klest_workspace_manager_v1" version="2">
     <description summary="Klest workspace controls">
       Exposes Klest's fixed set of workspaces to desktop components.
     </description>
@@ -15,6 +15,31 @@
       <description summary="Current workspace count and active index"/>
       <arg name="count" type="uint" summary="Number of workspaces"/>
       <arg name="active" type="uint" summary="Active zero-based workspace index"/>
+    </event>
+    <request name="activate_toplevel" since="2">
+      <description summary="Activate a window and switch to its workspace"/>
+      <arg name="id" type="uint" summary="Window identifier"/>
+    </request>
+    <request name="minimize_toplevel" since="2">
+      <description summary="Minimize a window"/>
+      <arg name="id" type="uint" summary="Window identifier"/>
+    </request>
+    <request name="toggle_maximize_toplevel" since="2">
+      <description summary="Toggle a window's maximized state"/>
+      <arg name="id" type="uint" summary="Window identifier"/>
+    </request>
+    <event name="window" since="2">
+      <description summary="A mapped window and its current state"/>
+      <arg name="id" type="uint" summary="Window identifier"/>
+      <arg name="workspace" type="uint" summary="Zero-based workspace index"/>
+      <arg name="title" type="string" summary="Window title"/>
+      <arg name="active" type="uint" summary="Whether the window has keyboard focus"/>
+      <arg name="minimized" type="uint" summary="Whether the window is minimized"/>
+      <arg name="maximized" type="uint" summary="Whether the window is maximized"/>
+    </event>
+    <event name="window_closed" since="2">
+      <description summary="A window was unmapped or destroyed"/>
+      <arg name="id" type="uint" summary="Window identifier"/>
     </event>
   </interface>
 </protocol>

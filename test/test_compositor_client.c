@@ -28,6 +28,11 @@ struct test_client {
 	struct wl_buffer *buffer;
 	uint32_t workspace_count;
 	uint32_t active_workspace;
+	uint32_t window_id;
+	bool window_seen;
+	bool window_closed;
+	bool window_minimized;
+	bool window_maximized;
 	bool configured;
 };
 
@@ -88,8 +93,36 @@ static void workspace_state(void *data,
 	client->active_workspace = active;
 }
 
+static void workspace_window(void *data,
+	struct klest_workspace_manager_v1 *manager, // NOSONAR: protocol callback ABI requires this type.
+	uint32_t id, uint32_t workspace, const char *title, uint32_t active,
+	uint32_t minimized, uint32_t maximized)
+{
+	struct test_client *client = data;
+	(void)manager;
+	(void)workspace;
+	(void)title;
+	(void)active;
+	client->window_seen = true;
+	client->window_id = id;
+	client->window_minimized = minimized != 0;
+	client->window_maximized = maximized != 0;
+}
+
+static void workspace_window_closed(void *data,
+	struct klest_workspace_manager_v1 *manager, // NOSONAR: protocol callback ABI requires this type.
+	uint32_t id)
+{
+	struct test_client *client = data;
+	(void)manager;
+	(void)id;
+	client->window_closed = true;
+}
+
 static const struct klest_workspace_manager_v1_listener workspace_listener = {
 	.state = workspace_state,
+	.window = workspace_window,
+	.window_closed = workspace_window_closed,
 };
 
 static uint32_t min_version(uint32_t advertised, uint32_t supported)
@@ -117,7 +150,7 @@ static void registry_global(void *data, struct wl_registry *registry,
 	} else if (strcmp(interface,
 			klest_workspace_manager_v1_interface.name) == 0) {
 		client->workspace_manager = wl_registry_bind(registry, name,
-			&klest_workspace_manager_v1_interface, 1);
+			&klest_workspace_manager_v1_interface, min_version(version, 2));
 		if (client->workspace_manager != NULL) {
 			klest_workspace_manager_v1_add_listener(
 				client->workspace_manager, &workspace_listener, client);
@@ -275,11 +308,54 @@ static bool exercise_toplevel(struct test_client *client)
 		fprintf(stderr, "integration client: map roundtrip failed\n");
 		return false;
 	}
+	return true;
+}
 
+/* Exercises minimize, restore and maximize over the workspace protocol. */
+static bool exercise_window_management(struct test_client *client)
+{
+	if (wl_display_roundtrip(client->display) < 0) {
+		fprintf(stderr, "integration client: window state roundtrip failed\n");
+		return false;
+	}
+	if (!client->window_seen) {
+		fprintf(stderr, "integration client: no window announced\n");
+		return false;
+	}
+
+	klest_workspace_manager_v1_minimize_toplevel(client->workspace_manager,
+		client->window_id);
+	if (wl_display_roundtrip(client->display) < 0 || !client->window_minimized) {
+		fprintf(stderr, "integration client: minimize did not take effect\n");
+		return false;
+	}
+
+	klest_workspace_manager_v1_activate_toplevel(client->workspace_manager,
+		client->window_id);
+	if (wl_display_roundtrip(client->display) < 0 || client->window_minimized) {
+		fprintf(stderr, "integration client: restore did not take effect\n");
+		return false;
+	}
+
+	klest_workspace_manager_v1_toggle_maximize_toplevel(
+		client->workspace_manager, client->window_id);
+	if (wl_display_roundtrip(client->display) < 0 || !client->window_maximized) {
+		fprintf(stderr, "integration client: maximize did not take effect\n");
+		return false;
+	}
+	return true;
+}
+
+static bool unmap_toplevel(struct test_client *client)
+{
 	wl_surface_attach(client->surface, NULL, 0, 0);
 	wl_surface_commit(client->surface);
 	if (wl_display_roundtrip(client->display) < 0) {
 		fprintf(stderr, "integration client: unmap roundtrip failed\n");
+		return false;
+	}
+	if (!client->window_closed) {
+		fprintf(stderr, "integration client: no window_closed event\n");
 		return false;
 	}
 	return true;
@@ -289,6 +365,7 @@ int main(void)
 {
 	struct test_client client = {0};
 	bool ok = connect_client(&client) && exercise_toplevel(&client) &&
+		exercise_window_management(&client) && unmap_toplevel(&client) &&
 		exercise_workspaces(&client);
 	destroy_client(&client);
 	return ok ? 0 : 1;

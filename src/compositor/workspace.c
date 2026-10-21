@@ -50,10 +50,44 @@ static void focus_active_workspace(struct klest_server *server)
 {
 	struct klest_toplevel *toplevel;
 	wl_list_for_each(toplevel, &server->toplevels, link) {
-		if (toplevel->workspace == server->workspaces.active) {
+		if (toplevel->workspace == server->workspaces.active &&
+				!toplevel->minimized) {
 			klest_focus_toplevel(toplevel);
 			return;
 		}
+	}
+}
+
+static struct klest_toplevel *find_toplevel(struct klest_server *server,
+	uint32_t id)
+{
+	struct klest_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		if (toplevel->id == id) {
+			return toplevel;
+		}
+	}
+	return NULL;
+}
+
+static void send_toplevel(struct klest_workspace_binding *binding,
+	const struct klest_toplevel *toplevel)
+{
+	if (wl_resource_get_version(binding->resource) < 2) {
+		return;
+	}
+	const char *title = toplevel->xdg_toplevel->title;
+	klest_workspace_manager_v1_send_window(binding->resource, toplevel->id,
+		toplevel->workspace, title != NULL ? title : "Untitled",
+		focused_toplevel(binding->server) == toplevel,
+		toplevel->minimized, toplevel->maximized);
+}
+
+static void broadcast_toplevel(struct klest_toplevel *toplevel)
+{
+	struct klest_workspace_binding *binding;
+	wl_list_for_each(binding, &toplevel->server->workspaces.bindings, link) {
+		send_toplevel(binding, toplevel);
 	}
 }
 
@@ -90,9 +124,39 @@ static void workspace_manager_activate(struct wl_client *client,
 	klest_workspace_activate(binding->server, index);
 }
 
+static void workspace_manager_activate_toplevel(struct wl_client *client,
+	struct wl_resource *resource, uint32_t id)
+{
+	(void)client;
+	struct klest_workspace_binding *binding =
+		wl_resource_get_user_data(resource);
+	klest_workspace_activate_toplevel(binding->server, id);
+}
+
+static void workspace_manager_minimize_toplevel(struct wl_client *client,
+	struct wl_resource *resource, uint32_t id)
+{
+	(void)client;
+	struct klest_workspace_binding *binding =
+		wl_resource_get_user_data(resource);
+	klest_workspace_minimize_toplevel(binding->server, id);
+}
+
+static void workspace_manager_toggle_maximize_toplevel(struct wl_client *client,
+	struct wl_resource *resource, uint32_t id)
+{
+	(void)client;
+	struct klest_workspace_binding *binding =
+		wl_resource_get_user_data(resource);
+	klest_workspace_toggle_maximize_toplevel(binding->server, id);
+}
+
 static const struct klest_workspace_manager_v1_interface workspace_manager_impl = {
 	.destroy = workspace_manager_destroy,
 	.activate = workspace_manager_activate,
+	.activate_toplevel = workspace_manager_activate_toplevel,
+	.minimize_toplevel = workspace_manager_minimize_toplevel,
+	.toggle_maximize_toplevel = workspace_manager_toggle_maximize_toplevel,
 };
 
 static void workspace_manager_bind(struct wl_client *client, void *data,
@@ -119,6 +183,10 @@ static void workspace_manager_bind(struct wl_client *client, void *data,
 	wl_list_insert(&server->workspaces.bindings, &binding->link);
 	klest_workspace_manager_v1_send_state(resource, KLEST_WORKSPACE_COUNT,
 		server->workspaces.active);
+	struct klest_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		send_toplevel(binding, toplevel);
+	}
 }
 
 bool klest_workspaces_init(struct klest_server *server)
@@ -126,7 +194,7 @@ bool klest_workspaces_init(struct klest_server *server)
 	server->workspaces.active = 0;
 	wl_list_init(&server->workspaces.bindings);
 	server->workspaces.global = wl_global_create(server->display,
-		&klest_workspace_manager_v1_interface, 1, server,
+		&klest_workspace_manager_v1_interface, 2, server,
 		workspace_manager_bind);
 	return server->workspaces.global != NULL;
 }
@@ -136,6 +204,37 @@ void klest_workspaces_finish(struct klest_server *server)
 	if (server->workspaces.global != NULL) {
 		wl_global_destroy(server->workspaces.global);
 		server->workspaces.global = NULL;
+	}
+}
+
+void klest_workspace_toplevel_mapped(struct klest_toplevel *toplevel)
+{
+	broadcast_toplevel(toplevel);
+}
+
+void klest_workspace_toplevel_unmapped(struct klest_toplevel *toplevel)
+{
+	struct klest_workspace_binding *binding;
+	wl_list_for_each(binding, &toplevel->server->workspaces.bindings, link) {
+		if (wl_resource_get_version(binding->resource) >= 2) {
+			klest_workspace_manager_v1_send_window_closed(binding->resource,
+				toplevel->id);
+		}
+	}
+}
+
+void klest_workspace_toplevel_changed(struct klest_toplevel *toplevel)
+{
+	if (toplevel->mapped) {
+		broadcast_toplevel(toplevel);
+	}
+}
+
+void klest_workspace_focus_changed(struct klest_server *server)
+{
+	struct klest_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		broadcast_toplevel(toplevel);
 	}
 }
 
@@ -156,6 +255,51 @@ void klest_workspace_activate(struct klest_server *server, uint32_t index)
 	}
 	focus_active_workspace(server);
 	broadcast_state(server);
+	klest_workspace_focus_changed(server);
+}
+
+void klest_workspace_activate_toplevel(struct klest_server *server, uint32_t id)
+{
+	struct klest_toplevel *toplevel = find_toplevel(server, id);
+	if (toplevel == NULL) {
+		return;
+	}
+	klest_workspace_activate(server, toplevel->workspace);
+	klest_toplevel_set_minimized(toplevel, false);
+	klest_focus_toplevel(toplevel);
+}
+
+void klest_workspace_minimize_toplevel(struct klest_server *server, uint32_t id)
+{
+	struct klest_toplevel *toplevel = find_toplevel(server, id);
+	if (toplevel != NULL) {
+		klest_toplevel_set_minimized(toplevel, true);
+	}
+}
+
+void klest_workspace_toggle_maximize_toplevel(struct klest_server *server,
+	uint32_t id)
+{
+	struct klest_toplevel *toplevel = find_toplevel(server, id);
+	if (toplevel != NULL) {
+		klest_toplevel_toggle_maximized(toplevel);
+	}
+}
+
+void klest_workspace_minimize_focused(struct klest_server *server)
+{
+	struct klest_toplevel *toplevel = focused_toplevel(server);
+	if (toplevel != NULL) {
+		klest_toplevel_set_minimized(toplevel, true);
+	}
+}
+
+void klest_workspace_toggle_maximize_focused(struct klest_server *server)
+{
+	struct klest_toplevel *toplevel = focused_toplevel(server);
+	if (toplevel != NULL) {
+		klest_toplevel_toggle_maximized(toplevel);
+	}
 }
 
 void klest_workspace_move_focused(struct klest_server *server, uint32_t index)
@@ -174,4 +318,5 @@ void klest_workspace_move_focused(struct klest_server *server, uint32_t index)
 	toplevel->workspace = index;
 	wlr_scene_node_set_enabled(&toplevel->scene_tree->node, false);
 	focus_active_workspace(server);
+	klest_workspace_focus_changed(server);
 }
