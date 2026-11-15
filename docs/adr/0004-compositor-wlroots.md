@@ -1,6 +1,6 @@
 # 0004 — Compositor foundation: wlroots
 
-**Status:** Accepted
+**Status:** Accepted (coupling settled: stay close)
 
 ## Context
 
@@ -21,7 +21,7 @@ input handling plus Wayland integration.
 - C-native, so it fits the language decision (0001) with no binding layer.
 - Ties Klest to wlroots' release cadence and API changes.
 
-## Open question
+## Open question — resolved
 
 How tightly should Klest couple to wlroots?
 
@@ -30,4 +30,12 @@ How tightly should Klest couple to wlroots?
 - **Abstract:** hide wlroots behind a Klest-owned interface — more insulation
   and easier to swap later, at the cost of extra indirection now.
 
-This should be resolved early, as it shapes how the compositor is written.
+**Resolution: stay close.** The compositor uses wlroots types and idioms
+directly, mirroring the canonical wlroots layout (cf. tinywl). The alpha code
+already follows this shape — `struct klest_server` intentionally mirrors the
+standard wlroots server, and listener dispatch relies on `wl_container_of()`.
+An abstraction layer would add indirection now for insulation Klest does not
+need: the wlroots API surface Klest touches is small and well identified
+(server, views, layers, input), and a later swap would reshape the compositor
+regardless. If wlroots ever becomes a constraint, the boundary to refactor is
+the compositor directory, not a wrapper API.

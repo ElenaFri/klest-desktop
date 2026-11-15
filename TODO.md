@@ -13,7 +13,7 @@
 
 ## Open questions to settle
 
-- [ ] wlroots scope: stay close vs. hide behind a Klest abstraction (ADR 0004)
+- [x] wlroots scope: stay close (resolved in ADR 0004)
 - [x] Module granularity: minimal compositor + standalone Wayland clients (ADR 0009)
 - [x] Configuration contract: simple defaults + advanced overrides (ADR 0007)
 
@@ -44,6 +44,17 @@
 - [x] Open, move, and close a window
 - [x] Load configuration from a TOML file
 - [x] First GTK configuration tool (`klest-settings`)
+
+## 0.1.0-beta — daily-drivable preview
+
+- [ ] `klest-background`: load a wallpaper image (PNG), with solid-colour fallback
+- [ ] Keyboard layout configurable in TOML (`[keyboard]`, xkb options)
+- [ ] Hot config reload (SIGHUP)
+- [ ] Re-run Sonar, VM smoke test, then tag `v0.1.0-beta`
+
+## Deferred to 0.2.0
+
+- [ ] XWayland support
 
 ## Roadmap — components (ADR 0009)
 

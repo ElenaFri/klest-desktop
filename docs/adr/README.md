@@ -18,7 +18,7 @@ Each record uses a short status:
 | 0001 | [Language: C (C17)](0001-language-c17.md) | Accepted |
 | 0002 | [Display protocol: Wayland](0002-wayland.md) | Accepted |
 | 0003 | [Initial target: Debian](0003-target-debian.md) | Accepted |
-| 0004 | [Compositor foundation: wlroots](0004-compositor-wlroots.md) | Proposed |
+| 0004 | [Compositor foundation: wlroots](0004-compositor-wlroots.md) | Accepted |
 | 0005 | [GUI toolkit: GTK](0005-gui-toolkit-gtk.md) | Proposed |
 | 0006 | [Build system: Meson + Ninja](0006-build-meson-ninja.md) | Proposed |
 | 0007 | [Configuration format: TOML](0007-config-toml.md) | Proposed |
@@ -29,12 +29,10 @@ Each record uses a short status:
 
 ## Open questions
 
-One boundary still needs to be settled:
+None. The last one — **wlroots scope** — is now settled by 0004: stay close
+to the library and use its types and idioms directly.
 
-1. **wlroots scope** — stay close to the library, or hide it behind a Klest
-   abstraction? (see 0004)
-
-Two earlier open questions are now settled:
+Two earlier open questions were also settled:
 
 - **Module granularity** — resolved by 0009: a minimal compositor plus
   standalone Wayland clients for every other component.
