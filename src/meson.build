@@ -61,11 +61,12 @@ if have_compositor
     		command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
     	)
 
-    	klest_compositor = static_library(
+	    klest_compositor = static_library(
         'klest-compositor',
         'compositor/server.c',
         'compositor/view.c',
         'compositor/placement.c',
+        'compositor/bindings.c',
         'compositor/input.c',
         'compositor/startup.c',
         		'compositor/layer.c',

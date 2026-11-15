@@ -114,7 +114,7 @@ static bool append_empty_array(sd_bus_message *message, char type,
 }
 
 static bool send_notification(struct notify_test *test, const char *summary,
-	int32_t expire_ms, uint32_t *id)
+	uint32_t replaces_id, int32_t expire_ms, uint32_t *id)
 {
 	sd_bus_message *request = NULL;
 	sd_bus_message *reply = NULL;
@@ -122,8 +122,8 @@ static bool send_notification(struct notify_test *test, const char *summary,
 	int r = sd_bus_message_new_method_call(test->bus, &request,
 		NOTIFY_SERVICE, NOTIFY_PATH, NOTIFY_IFACE, "Notify");
 	if (r >= 0) {
-		r = sd_bus_message_append(request, "susss", "Klest test", 0U, "",
-			summary, "test body");
+		r = sd_bus_message_append(request, "susss", "Klest test", replaces_id,
+			"", summary, "test body");
 	}
 	if (r >= 0 && !append_empty_array(request, 'a', "s")) {
 		r = -EINVAL;
@@ -210,7 +210,7 @@ static bool exercise_lifecycle(struct notify_test *test)
 	}
 
 	uint32_t close_id = 0;
-	if (!send_notification(test, "explicit close", 0, &close_id)) {
+	if (!send_notification(test, "explicit close", 0, 0, &close_id)) {
 		return false;
 	}
 	size_t close_event_start = test->event_count;
@@ -222,10 +222,80 @@ static bool exercise_lifecycle(struct notify_test *test)
 
 	uint32_t expiry_id = 0;
 	size_t event_start = test->event_count;
-	return send_notification(test, "automatic expiry", TEST_EXPIRE_MS,
+	return send_notification(test, "automatic expiry", 0, TEST_EXPIRE_MS,
 			&expiry_id) &&
 		wait_for_close_event(test, expiry_id, CLOSED_REASON_EXPIRED,
 			event_start);
+}
+
+/* A notification replaced through replaces_id keeps its id (spec: "the
+ * returned id should be the same as replaces_id") — the card is updated,
+ * not duplicated. */
+static bool exercise_replace(struct notify_test *test)
+{
+	uint32_t original_id = 0;
+	if (!send_notification(test, "replace me", 0, 0, &original_id)) {
+		return false;
+	}
+
+	uint32_t replaced_id = 0;
+	if (!send_notification(test, "replaced", original_id, 0, &replaced_id)) {
+		return false;
+	}
+	if (replaced_id != original_id) {
+		fprintf(stderr, "notify test: replacement returned a new id "
+			"(%u != %u)\n", replaced_id, original_id);
+		return false;
+	}
+
+	/* The replaced card must be closeable exactly like a fresh one. */
+	size_t event_start = test->event_count;
+	return close_notification(test, original_id) &&
+		wait_for_close_event(test, original_id, CLOSED_REASON_CLOSED,
+			event_start);
+}
+
+/* Closing an unknown id is a no-op: no close signal, daemon stays alive. */
+static bool exercise_unknown_close(struct notify_test *test)
+{
+	const uint32_t unknown_id = 0x7fffffffU;
+	size_t event_start = test->event_count;
+	if (!close_notification(test, unknown_id)) {
+		return false;
+	}
+
+	/* Give a spurious signal a chance to show up; none may arrive. */
+	uint64_t deadline = monotonic_milliseconds() + 300;
+	while (monotonic_milliseconds() < deadline) {
+		int r;
+		do {
+			r = sd_bus_process(test->bus, NULL);
+		} while (r > 0);
+		if (r < 0) {
+			fprintf(stderr, "notify test: D-Bus processing failed: %s\n",
+				strerror(-r));
+			return false;
+		}
+		if (has_close_event(test, event_start, unknown_id, CLOSED_REASON_CLOSED)) {
+			fprintf(stderr, "notify test: close signal for an unknown id\n");
+			return false;
+		}
+		(void)sd_bus_wait(test->bus, 50000U);
+	}
+
+	/* The daemon must still answer. */
+	sd_bus_error error = SD_BUS_ERROR_NULL;
+	sd_bus_message *reply = NULL;
+	int r = sd_bus_call_method(test->bus, NOTIFY_SERVICE, NOTIFY_PATH,
+		NOTIFY_IFACE, "GetServerInformation", &error, &reply, "");
+	sd_bus_message_unref(reply);
+	sd_bus_error_free(&error);
+	if (r < 0) {
+		fprintf(stderr, "notify test: daemon stopped answering after "
+			"an unknown-id close\n");
+		return false;
+	}
+	return true;
 }
 
 static pid_t start_daemon(const char *path)
@@ -267,7 +337,8 @@ int main(void)
 		perror("notify test: fork daemon");
 	}
 	bool bus_ready = daemon_pid > 0 && test_bus_connect(&test);
-	bool ok = bus_ready && exercise_lifecycle(&test);
+	bool ok = bus_ready && exercise_lifecycle(&test) &&
+		exercise_replace(&test) && exercise_unknown_close(&test);
 
 	if (test.closed_slot != NULL) {
 		sd_bus_slot_unref(test.closed_slot);

@@ -1,0 +1,12 @@
+# Codecov configuration (see the coverage badge in README.md).
+#
+# Coverage measures the code Klest maintains. Vendored third-party code, test
+# harnesses and generated Wayland protocol glue are excluded — mirroring
+# sonar-project.properties — so the badge reflects the code we actually write.
+ignore:
+  - "third_party/**"
+  - "test/**"
+  - "src/*-protocol.h"
+  - "build*/**"
+  - "debian/**"
+  - "scripts/**"

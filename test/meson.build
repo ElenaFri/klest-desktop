@@ -18,6 +18,15 @@ test_config = executable(
 test('config', test_config)
 
 if have_compositor and wayland_client_dep.found()
+    test_bindings = executable(
+        'test-bindings',
+        'test_bindings.c',
+        '../src/compositor/bindings.c',
+        include_directories: include_directories('../src'),
+        dependencies: xkbcommon_dep,
+    )
+    test('bindings', test_bindings)
+
     test_window_placement = executable(
         'test-window-placement',
         'test_window_placement.c',
@@ -68,6 +77,12 @@ if have_compositor and wayland_client_dep.found()
     test('compositor-integration', test_compositor, args: [
         meson.project_build_root() / 'src/klest',
         test_compositor_client.full_path(),
+        meson.current_build_dir(),
+    ], timeout: 30)
+
+    test_autostart = executable('test-autostart', 'test_autostart.c')
+    test('autostart-integration', test_autostart, args: [
+        meson.project_build_root() / 'src/klest',
         meson.current_build_dir(),
     ], timeout: 30)
 

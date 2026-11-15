@@ -33,6 +33,12 @@
 #include "view.h"
 #include "workspace.h"
 #include "config/config.h"
+#include "bindings.h"
+
+/* The modifier bits in bindings.h must stay in sync with wlroots. */
+_Static_assert(KLEST_MOD_ALT == WLR_MODIFIER_ALT &&
+	KLEST_MOD_SHIFT == WLR_MODIFIER_SHIFT,
+	"klest modifier bits must match wlroots");
 
 struct klest_keyboard {
 	struct wl_list link; /* klest_server.keyboards */
@@ -133,27 +139,22 @@ static void cursor_frame(struct wl_listener *listener, void *data)
 	wlr_seat_pointer_notify_frame(server->seat);
 }
 
-static bool handle_workspace_key(struct klest_server *server,
-	struct wlr_keyboard *keyboard, uint32_t keycode, bool move)
+static void cycle_focus(struct klest_server *server)
 {
-	static const char *const key_names[KLEST_WORKSPACE_COUNT] = {
-		"AE01", "AE02", "AE03", "AE04",
-	};
-	const char *name = xkb_keymap_key_get_name(keyboard->keymap, keycode);
-	if (name == NULL) {
-		return false;
+	struct wlr_surface *focused_surface =
+		server->seat->keyboard_state.focused_surface;
+	if (focused_surface != NULL) {
+		focused_surface = wlr_surface_get_root_surface(focused_surface);
 	}
-	for (uint32_t i = 0; i < KLEST_WORKSPACE_COUNT; i++) {
-		if (strcmp(name, key_names[i]) == 0) {
-			if (move) {
-				klest_workspace_move_focused(server, i);
-			} else {
-				klest_workspace_activate(server, i);
-			}
-			return true;
+	struct klest_toplevel *toplevel;
+	wl_list_for_each(toplevel, &server->toplevels, link) {
+		if (toplevel->workspace == server->workspaces.active &&
+				!toplevel->minimized &&
+				toplevel->xdg_toplevel->base->surface != focused_surface) {
+			klest_focus_toplevel(toplevel);
+			return;
 		}
 	}
-	return false;
 }
 
 /* Spawns a configured command, logging when the binding is left unset. */
@@ -166,48 +167,42 @@ static void spawn_configured(const char *cmd, const char *key)
 	klest_startup_exec(cmd);
 }
 
-/* Compositor keybindings. Returns true if the key was consumed. */
-static bool handle_keybinding(struct klest_server *server, xkb_keysym_t sym)
+/* Applies a resolved binding to the server. */
+static void execute_binding(struct klest_server *server,
+	const struct klest_binding *binding)
 {
 	const struct klest_config *cfg = server->config;
-	switch (sym) {
-	case XKB_KEY_Escape:
+	switch (binding->action) {
+	case KLEST_ACTION_QUIT:
 		wl_display_terminate(server->display);
-		return true;
-	case XKB_KEY_Return:
+		break;
+	case KLEST_ACTION_SPAWN_TERMINAL:
 		spawn_configured(cfg != NULL ? cfg->terminal : NULL, "terminal");
-		return true;
-	case XKB_KEY_space:
+		break;
+	case KLEST_ACTION_SPAWN_LAUNCHER:
 		spawn_configured(cfg != NULL ? cfg->launcher : NULL, "launcher");
-		return true;
-	case XKB_KEY_F9:
+		break;
+	case KLEST_ACTION_MINIMIZE_FOCUSED:
 		klest_workspace_minimize_focused(server);
-		return true;
-	case XKB_KEY_F10:
+		break;
+	case KLEST_ACTION_TOGGLE_MAXIMIZE_FOCUSED:
 		klest_workspace_toggle_maximize_focused(server);
-		return true;
-	case XKB_KEY_F1: {
-		struct wlr_surface *focused_surface =
-			server->seat->keyboard_state.focused_surface;
-		if (focused_surface != NULL) {
-			focused_surface = wlr_surface_get_root_surface(focused_surface);
-		}
-		struct klest_toplevel *toplevel;
-		wl_list_for_each(toplevel, &server->toplevels, link) {
-			if (toplevel->workspace == server->workspaces.active &&
-					!toplevel->minimized &&
-					toplevel->xdg_toplevel->base->surface != focused_surface) {
-				klest_focus_toplevel(toplevel);
-				return true;
-			}
-		}
-		return true;
-	}
-	default:
-		return false;
+		break;
+	case KLEST_ACTION_CYCLE_FOCUS:
+		cycle_focus(server);
+		break;
+	case KLEST_ACTION_ACTIVATE_WORKSPACE:
+		klest_workspace_activate(server, binding->workspace);
+		break;
+	case KLEST_ACTION_MOVE_FOCUSED_TO_WORKSPACE:
+		klest_workspace_move_focused(server, binding->workspace);
+		break;
+	case KLEST_ACTION_NONE:
+		break;
 	}
 }
 
+/* Applies a resolved binding to the server. */
 static void keyboard_handle_modifiers(struct wl_listener *listener, void *data)
 {
 	struct klest_keyboard *keyboard =
@@ -235,11 +230,18 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data)
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 	if ((modifiers & WLR_MODIFIER_ALT) &&
 			event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-		bool move = (modifiers & WLR_MODIFIER_SHIFT) != 0;
-		handled = handle_workspace_key(server, keyboard->wlr_keyboard,
-			keycode, move);
+		const char *key_name = xkb_keymap_key_get_name(
+			keyboard->wlr_keyboard->keymap, keycode);
+		struct klest_binding binding;
+		if (klest_bindings_workspace(modifiers, key_name, &binding)) {
+			execute_binding(server, &binding);
+			handled = true;
+		}
 		for (int i = 0; i < nsyms; i++) {
-			handled = handle_keybinding(server, syms[i]) || handled;
+			if (klest_bindings_action(syms[i], &binding)) {
+				execute_binding(server, &binding);
+				handled = true;
+			}
 		}
 	}
 

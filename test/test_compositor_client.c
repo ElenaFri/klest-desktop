@@ -31,8 +31,10 @@ struct test_client {
 	uint32_t window_id;
 	bool window_seen;
 	bool window_closed;
+	bool window_active;
 	bool window_minimized;
 	bool window_maximized;
+	bool toplevel_activated;
 	bool configured;
 };
 
@@ -64,11 +66,19 @@ static void toplevel_configure(void *data,
 	int32_t width, int32_t height,
 	struct wl_array *states) // NOSONAR: protocol callback ABI requires this type.
 {
-	(void)data;
+	struct test_client *client = data;
 	(void)toplevel;
 	(void)width;
 	(void)height;
-	(void)states;
+	/* Track the activated state: in the keyboard-less headless test it is the
+	 * observable proof that switching workspaces reactivates the window. */
+	client->toplevel_activated = false;
+	const uint32_t *state;
+	wl_array_for_each(state, states) {
+		if (*state == XDG_TOPLEVEL_STATE_ACTIVATED) {
+			client->toplevel_activated = true;
+		}
+	}
 }
 
 static void toplevel_close(void *data,
@@ -102,9 +112,9 @@ static void workspace_window(void *data, // NOSONAR: protocol callback ABI requi
 	(void)manager;
 	(void)workspace;
 	(void)title;
-	(void)active;
 	client->window_seen = true;
 	client->window_id = id;
+	client->window_active = active != 0;
 	client->window_minimized = minimized != 0;
 	client->window_maximized = maximized != 0;
 }
@@ -230,7 +240,8 @@ static bool connect_client(struct test_client *client)
 	return true;
 }
 
-/* Checks the workspace global reports a sane state and honours activate(). */
+/* Checks the workspace global reports a sane state and honours activate(),
+ * including the focus side effects for windows left on the old workspace. */
 static bool exercise_workspaces(struct test_client *client)
 {
 	if (wl_display_roundtrip(client->display) < 0) {
@@ -241,6 +252,9 @@ static bool exercise_workspaces(struct test_client *client)
 		fprintf(stderr, "integration client: unexpected initial workspace state\n");
 		return false;
 	}
+
+	/* Switching away must defocus the window that stays behind. */
+	client->window_active = true;
 	klest_workspace_manager_v1_activate(client->workspace_manager, 1);
 	if (wl_display_roundtrip(client->display) < 0) {
 		fprintf(stderr, "integration client: workspace activate roundtrip failed\n");
@@ -248,6 +262,27 @@ static bool exercise_workspaces(struct test_client *client)
 	}
 	if (client->active_workspace != 1) {
 		fprintf(stderr, "integration client: activate did not switch workspace\n");
+		return false;
+	}
+	if (client->window_active) {
+		fprintf(stderr, "integration client: window kept focus on the "
+			"inactive workspace\n");
+		return false;
+	}
+
+	/* Switching back must reactivate the window. The keyboard-less headless
+	 * compositor never sets seat focus, so the xdg activated state is the
+	 * observable contract here. */
+	client->toplevel_activated = false;
+	klest_workspace_manager_v1_activate(client->workspace_manager, 0);
+	if (wl_display_roundtrip(client->display) < 0 ||
+			client->active_workspace != 0) {
+		fprintf(stderr, "integration client: activate back did not switch\n");
+		return false;
+	}
+	if (!client->toplevel_activated) {
+		fprintf(stderr, "integration client: window was not reactivated "
+			"on return\n");
 		return false;
 	}
 	return true;
@@ -365,8 +400,8 @@ int main(void)
 {
 	struct test_client client = {0};
 	bool ok = connect_client(&client) && exercise_toplevel(&client) &&
-		exercise_window_management(&client) && unmap_toplevel(&client) &&
-		exercise_workspaces(&client);
+		exercise_window_management(&client) &&
+		exercise_workspaces(&client) && unmap_toplevel(&client);
 	destroy_client(&client);
 	return ok ? 0 : 1;
 }
