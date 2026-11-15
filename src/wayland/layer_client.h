@@ -25,11 +25,22 @@ struct klest_layer_client {
 	bool opaque; /* when set, present() marks the whole surface opaque */
 };
 
+/* Layer-surface placement request, passed to klest_layer_client_create_surface.
+ * Width/height 0 means "let the compositor decide" for anchored edges. */
+struct klest_layer_surface_spec {
+	uint32_t layer;              /* ZWLR_LAYER_SHELL_V1_LAYER_* */
+	const char *namespace;        /* compositor-side identifier */
+	uint32_t anchors;            /* ZWLR_LAYER_SURFACE_V1_ANCHOR_* mask */
+	uint32_t width;
+	uint32_t height;
+	int32_t exclusive_zone;      /* -1 = follow the compositor default */
+	bool accepts_pointer_input;   /* false = click-through surface */
+	bool keyboard_interactive;   /* request keyboard focus on map */
+};
+
 bool klest_layer_client_connect(struct klest_layer_client *client);
 bool klest_layer_client_create_surface(struct klest_layer_client *client,
-	uint32_t layer, const char *namespace, uint32_t anchors,
-	uint32_t width, uint32_t height, int32_t exclusive_zone,
-	bool accepts_pointer_input, bool keyboard_interactive);
+	const struct klest_layer_surface_spec *spec);
 bool klest_layer_client_wait_configure(struct klest_layer_client *client);
 /* Declares the surface fully opaque (or not), letting the compositor skip
  * compositing whatever sits behind it. Only call this for surfaces that fill

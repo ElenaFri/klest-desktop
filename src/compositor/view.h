@@ -11,7 +11,7 @@
 
 struct wlr_surface;
 
-struct klest_toplevel {
+struct klest_toplevel { // NOSONAR: one flat wl_listener per wlroots signal (cf. tinywl); grouping them would just relocate the field count.
 	struct wl_list link; /* klest_server.toplevels */
 	struct klest_server *server;
 	struct wlr_xdg_toplevel *xdg_toplevel;

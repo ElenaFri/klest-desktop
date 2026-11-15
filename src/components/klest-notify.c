@@ -182,7 +182,7 @@ static void notify_expire(struct notify *n)
 	uint64_t now = now_monotonic_usec();
 	size_t i = 0;
 	while (i < n->count) {
-		struct notification *it = &n->items[i];
+		const struct notification *it = &n->items[i];
 		long elapsed = (long)((now - it->shown_usec) / 1000U);
 		if (it->expire_ms > 0 && elapsed >= it->expire_ms) {
 			notify_close_at(n, i, NOTIFY_REASON_EXPIRED);
@@ -193,7 +193,7 @@ static void notify_expire(struct notify *n)
 }
 
 /* Milliseconds until the next expiry, or -1 if nothing expires. */
-static int notify_next_expiry(struct notify *n)
+static int notify_next_expiry(const struct notify *n)
 {
 	uint64_t now = now_monotonic_usec();
 	long best = -1;
@@ -313,12 +313,13 @@ static int method_get_server_information(sd_bus_message *m, void *userdata,
 		KLEST_VERSION, "1.2");
 }
 
-static int method_get_capabilities(sd_bus_message *m, void *userdata,
+static int method_get_capabilities(sd_bus_message *m, void *userdata, // NOSONAR: sd-bus handler ABI.
 	sd_bus_error *ret_error)
 {
 	struct notify *n = userdata;
 	(void)ret_error;
-	char *caps[] = {(char *)"body", NULL};
+	char body[] = "body";
+	char *caps[] = {body, NULL};
 	sd_bus_message *reply = NULL;
 	int r = sd_bus_message_new_method_return(m, &reply);
 	if (r < 0) {
@@ -332,7 +333,7 @@ static int method_get_capabilities(sd_bus_message *m, void *userdata,
 	return r;
 }
 
-static int method_notify(sd_bus_message *m, void *userdata,
+static int method_notify(sd_bus_message *m, void *userdata, // NOSONAR: sd-bus handler ABI.
 	sd_bus_error *ret_error)
 {
 	struct notify *n = userdata;
@@ -366,7 +367,7 @@ static int method_notify(sd_bus_message *m, void *userdata,
 	return sd_bus_reply_method_return(m, "u", id);
 }
 
-static int method_close_notification(sd_bus_message *m, void *userdata,
+static int method_close_notification(sd_bus_message *m, void *userdata, // NOSONAR: sd-bus handler ABI.
 	sd_bus_error *ret_error)
 {
 	struct notify *n = userdata;
@@ -521,12 +522,15 @@ static bool notify_create_surface(struct notify *n)
 {
 	/* Full-height column on the right edge: cards render at the top, the rest
 	 * stays transparent and click-through (empty input region). */
-	return klest_layer_client_create_surface(&n->layer,
-		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "klest-notify",
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-		ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-		NOTIFY_WIDTH, 0, 0, false, false) &&
+	const struct klest_layer_surface_spec spec = {
+		.layer = ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+		.namespace = "klest-notify",
+		.anchors = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+			ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
+		.width = NOTIFY_WIDTH,
+	};
+	return klest_layer_client_create_surface(&n->layer, &spec) &&
 		klest_layer_client_wait_configure(&n->layer);
 }
 

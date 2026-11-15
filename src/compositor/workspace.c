@@ -108,14 +108,14 @@ static void workspace_binding_destroy(struct wl_resource *resource)
 	free(binding);
 }
 
-static void workspace_manager_destroy(struct wl_client *client,
+static void workspace_manager_destroy(struct wl_client *client, // NOSONAR: Wayland request ABI.
 	struct wl_resource *resource)
 {
 	(void)client;
 	wl_resource_destroy(resource);
 }
 
-static void workspace_manager_activate(struct wl_client *client,
+static void workspace_manager_activate(struct wl_client *client, // NOSONAR: Wayland request ABI.
 	struct wl_resource *resource, uint32_t index)
 {
 	(void)client;
@@ -124,7 +124,7 @@ static void workspace_manager_activate(struct wl_client *client,
 	klest_workspace_activate(binding->server, index);
 }
 
-static void workspace_manager_activate_toplevel(struct wl_client *client,
+static void workspace_manager_activate_toplevel(struct wl_client *client, // NOSONAR: Wayland request ABI.
 	struct wl_resource *resource, uint32_t id)
 {
 	(void)client;
@@ -133,7 +133,7 @@ static void workspace_manager_activate_toplevel(struct wl_client *client,
 	klest_workspace_activate_toplevel(binding->server, id);
 }
 
-static void workspace_manager_minimize_toplevel(struct wl_client *client,
+static void workspace_manager_minimize_toplevel(struct wl_client *client, // NOSONAR: Wayland request ABI.
 	struct wl_resource *resource, uint32_t id)
 {
 	(void)client;
@@ -142,7 +142,7 @@ static void workspace_manager_minimize_toplevel(struct wl_client *client,
 	klest_workspace_minimize_toplevel(binding->server, id);
 }
 
-static void workspace_manager_toggle_maximize_toplevel(struct wl_client *client,
+static void workspace_manager_toggle_maximize_toplevel(struct wl_client *client, // NOSONAR: Wayland request ABI.
 	struct wl_resource *resource, uint32_t id)
 {
 	(void)client;

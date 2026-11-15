@@ -93,7 +93,7 @@ static void workspace_state(void *data,
 	client->active_workspace = active;
 }
 
-static void workspace_window(void *data,
+static void workspace_window(void *data, // NOSONAR: protocol callback ABI requires this arity.
 	struct klest_workspace_manager_v1 *manager, // NOSONAR: protocol callback ABI requires this type.
 	uint32_t id, uint32_t workspace, const char *title, uint32_t active,
 	uint32_t minimized, uint32_t maximized)

@@ -125,6 +125,15 @@ static uint32_t panel_clock_x(uint32_t width)
 	return width > clock_width + 16U ? width - clock_width - 16U : 0U;
 }
 
+/* Window-list box colour: active, minimized, or plain. */
+static uint32_t window_box_color(const struct panel_window *window)
+{
+	if (window->active) {
+		return 0xff5c8fe8U;
+	}
+	return window->minimized ? 0xff20222cU : 0xff2a2d3eU;
+}
+
 static void draw_windows(const struct panel *panel,
 	const struct klest_canvas *canvas, uint32_t clock_x)
 {
@@ -138,10 +147,8 @@ static void draw_windows(const struct panel *panel,
 		if (x + KLEST_WINDOW_BOX_WIDTH > right) {
 			break;
 		}
-		uint32_t background = window->active ? 0xff5c8fe8U :
-			(window->minimized ? 0xff20222cU : 0xff2a2d3eU);
 		fill_rect(canvas, x, 4U, KLEST_WINDOW_BOX_WIDTH - 4U,
-			canvas->height - 8U, background);
+			canvas->height - 8U, window_box_color(window));
 		char label[KLEST_WINDOW_LABEL_CHARS + 1U];
 		size_t length = 0;
 		while (length < KLEST_WINDOW_LABEL_CHARS &&
@@ -268,8 +275,8 @@ static void workspace_handle_state(void *data,
 	panel->needs_redraw = true;
 }
 
-static void workspace_handle_window(void *data,
-	struct klest_workspace_manager_v1 *manager, // NOSONAR: Wayland callback ABI.
+static void workspace_handle_window(void *data, // NOSONAR: protocol ABI
+	struct klest_workspace_manager_v1 *manager,
 	uint32_t id, uint32_t workspace, const char *title, uint32_t active,
 	uint32_t minimized, uint32_t maximized)
 {
@@ -386,7 +393,7 @@ static void pointer_handle_button(void *data,
 	if (wl_proxy_get_version((struct wl_proxy *)panel->workspace_manager) < 2) {
 		return;
 	}
-	struct panel_window *window = window_at(panel, panel->pointer_x);
+	const struct panel_window *window = window_at(panel, panel->pointer_x);
 	if (window == NULL) {
 		return;
 	}
@@ -543,12 +550,11 @@ static bool run_panel(struct panel *panel, bool once)
 			fprintf(stderr, "klest-panel: cannot read system clock\n");
 			return false;
 		}
-		if (panel->needs_redraw || current_time / 60 != panel->drawn_minute ||
-				panel->layer.width != panel->mapped_width ||
-				panel->layer.height != panel->mapped_height) {
-			if (!draw_panel(panel)) {
-				return false;
-			}
+		bool dirty = panel->needs_redraw || current_time / 60 != panel->drawn_minute ||
+			panel->layer.width != panel->mapped_width ||
+			panel->layer.height != panel->mapped_height;
+		if (dirty && !draw_panel(panel)) {
+			return false;
 		}
 	}
 	return true;
@@ -596,14 +602,19 @@ int main(int argc, char *argv[])
 	}
 
 	struct panel panel = {0};
-	bool ok = klest_layer_client_connect(&panel.layer) &&
-		panel_bind_controls(&panel) &&
-		klest_layer_client_create_surface(&panel.layer,
-			ZWLR_LAYER_SHELL_V1_LAYER_TOP, "klest-panel",
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+	const struct klest_layer_surface_spec spec = {
+		.layer = ZWLR_LAYER_SHELL_V1_LAYER_TOP,
+		.namespace = "klest-panel",
+		.anchors = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-			0, KLEST_PANEL_HEIGHT, KLEST_PANEL_HEIGHT, true, false) &&
+		.height = KLEST_PANEL_HEIGHT,
+		.exclusive_zone = KLEST_PANEL_HEIGHT,
+		.accepts_pointer_input = true,
+	};
+	bool ok = klest_layer_client_connect(&panel.layer) &&
+		panel_bind_controls(&panel) &&
+		klest_layer_client_create_surface(&panel.layer, &spec) &&
 		klest_layer_client_wait_configure(&panel.layer);
 	klest_layer_client_set_opaque(&panel.layer, true);
 	if (ok) {

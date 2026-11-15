@@ -51,7 +51,7 @@ struct klest_output {
  * wlroots drives via wl_container_of(). Splitting it into sub-structs would
  * break that offsetof-based dispatch for little real benefit, so the field
  * count is a deliberate, documented exception. */
-struct klest_server {
+struct klest_server { // NOSONAR: wide by design — mirrors the canonical wlroots server layout (see comment above).
 	struct wl_display *display;
 	struct wl_event_source *termination_signals[2];
 	struct wlr_backend *backend;

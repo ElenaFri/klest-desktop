@@ -136,7 +136,10 @@ static void commands_scan_path(struct command_list *list)
 	if (copy == NULL) {
 		return;
 	}
-	for (char *dir = strtok(copy, ":"); dir != NULL; dir = strtok(NULL, ":")) {
+	char *save = NULL;
+	for (char *token = strtok_r(copy, ":", &save); token != NULL;
+			token = strtok_r(NULL, ":", &save)) {
+		const char *dir = token;
 		if (dir[0] != '\0') {
 			commands_scan_dir(list, dir);
 		}
@@ -674,15 +677,18 @@ int main(int argc, char *argv[])
 	launcher_filter(&launcher);
 
 	struct klest_layer_client *layer = &launcher.layer;
-	bool ok = klest_layer_client_connect(layer) &&
-		launcher_bind_seat(&launcher) &&
-		klest_layer_client_create_surface(layer,
-			ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "klest-launcher",
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+	const struct klest_layer_surface_spec spec = {
+		.layer = ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
+		.namespace = "klest-launcher",
+		.anchors = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-			0, 0, 0, false, true) &&
+		.keyboard_interactive = true,
+	};
+	bool ok = klest_layer_client_connect(layer) &&
+		launcher_bind_seat(&launcher) &&
+		klest_layer_client_create_surface(layer, &spec) &&
 		klest_layer_client_wait_configure(layer);
 	klest_layer_client_set_opaque(layer, true);
 	if (ok) {

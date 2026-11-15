@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# id-token: write lets the Codecov action authenticate via OIDC, so public-repo
+# coverage uploads need no stored token (codecov-action v5+).
+permissions:
+  id-token: write
+
 jobs:
   ci:
     name: ${{ matrix.name }}
@@ -17,6 +22,8 @@ jobs:
             args: ""
           - name: sanitizers
             args: "--buildtype=debug -Db_sanitize=address,undefined"
+          - name: coverage
+            args: "--buildtype=debug -Db_coverage=true"
     steps:
       - name: Install dependencies
         run: |
@@ -24,9 +31,10 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential meson ninja-build pkg-config git ca-certificates \
             libwlroots-0.18-dev libwayland-dev libwayland-bin wayland-protocols \
-            libxkbcommon-dev libgtk-4-dev libsystemd-dev dbus-daemon
+            libxkbcommon-dev libgtk-4-dev libsystemd-dev dbus-daemon \
+            gcovr curl gpg
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Configure
         run: meson setup build ${{ matrix.args }}
@@ -36,3 +44,15 @@ jobs:
 
       - name: Test
         run: meson test -C build --print-errorlogs
+
+      - name: Coverage report
+        if: matrix.name == 'coverage'
+        run: ninja -C build coverage-xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.name == 'coverage'
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          files: build/meson-logs/coverage.xml
+          use_oidc: true
+          fail_ci_if_error: false

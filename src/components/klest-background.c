@@ -119,15 +119,17 @@ int main(int argc, char *argv[])
 		sizeof(background.color));
 
 	struct klest_layer_client *layer = &background.layer;
-	bool ok = klest_layer_client_connect(layer) &&
-		klest_layer_client_create_surface(layer,
-			ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND,
-			"klest-background",
-			ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+	const struct klest_layer_surface_spec spec = {
+		.layer = ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND,
+		.namespace = "klest-background",
+		.anchors = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
 			ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT,
-			0, 0, -1, false, false) &&
+		.exclusive_zone = -1,
+	};
+	bool ok = klest_layer_client_connect(layer) &&
+		klest_layer_client_create_surface(layer, &spec) &&
 		klest_layer_client_wait_configure(layer);
 	klest_layer_client_set_opaque(layer, true);
 	if (ok) {

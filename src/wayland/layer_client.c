@@ -29,7 +29,7 @@ static void registry_global(void *data, struct wl_registry *registry,
 }
 
 static void registry_global_remove(void *data,
-	struct wl_registry *registry, uint32_t name)
+	struct wl_registry *registry, uint32_t name) // NOSONAR: Wayland callback ABI.
 {
 	(void)data;
 	(void)registry;
@@ -53,7 +53,7 @@ static void layer_surface_configure(void *data,
 }
 
 static void layer_surface_closed(void *data,
-	struct zwlr_layer_surface_v1 *layer_surface)
+	struct zwlr_layer_surface_v1 *layer_surface) // NOSONAR: Wayland callback ABI.
 {
 	struct klest_layer_client *client = data;
 	(void)layer_surface;
@@ -88,16 +88,14 @@ bool klest_layer_client_connect(struct klest_layer_client *client)
 }
 
 bool klest_layer_client_create_surface(struct klest_layer_client *client,
-	uint32_t layer, const char *namespace, uint32_t anchors,
-	uint32_t width, uint32_t height, int32_t exclusive_zone,
-	bool accepts_pointer_input, bool keyboard_interactive)
+	const struct klest_layer_surface_spec *spec)
 {
 	client->surface = wl_compositor_create_surface(client->compositor);
 	if (client->surface == NULL) {
 		fprintf(stderr, "klest-wayland: cannot create surface\n");
 		return false;
 	}
-	if (!accepts_pointer_input) {
+	if (!spec->accepts_pointer_input) {
 		struct wl_region *empty_input =
 			wl_compositor_create_region(client->compositor);
 		if (empty_input == NULL) {
@@ -109,18 +107,19 @@ bool klest_layer_client_create_surface(struct klest_layer_client *client,
 	}
 
 	client->layer_surface = zwlr_layer_shell_v1_get_layer_surface(
-		client->shell, client->surface, NULL, layer, namespace);
+		client->shell, client->surface, NULL, spec->layer, spec->namespace);
 	if (client->layer_surface == NULL || zwlr_layer_surface_v1_add_listener(
 			client->layer_surface, &layer_surface_listener, client) != 0) {
 		fprintf(stderr, "klest-wayland: cannot create layer surface\n");
 		return false;
 	}
-	zwlr_layer_surface_v1_set_anchor(client->layer_surface, anchors);
-	zwlr_layer_surface_v1_set_size(client->layer_surface, width, height);
+	zwlr_layer_surface_v1_set_anchor(client->layer_surface, spec->anchors);
+	zwlr_layer_surface_v1_set_size(client->layer_surface, spec->width,
+		spec->height);
 	zwlr_layer_surface_v1_set_exclusive_zone(client->layer_surface,
-		exclusive_zone);
+		spec->exclusive_zone);
 	zwlr_layer_surface_v1_set_keyboard_interactivity(client->layer_surface,
-		keyboard_interactive ?
+		spec->keyboard_interactive ?
 			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE :
 			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE);
 	wl_surface_commit(client->surface);

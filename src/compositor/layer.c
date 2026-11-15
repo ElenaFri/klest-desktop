@@ -51,6 +51,37 @@ static struct wlr_scene_tree *layer_tree_for(struct klest_server *server,
 	return server->layers.background;
 }
 
+/* True when `surface` takes part in the pass being run: it lives on `output`,
+ * sits in `layer`, and its exclusive-zone wish matches `exclusive`. */
+static bool surface_matches_pass(const struct klest_layer_surface *surface,
+	const struct klest_output *output, int layer, bool exclusive)
+{
+	const struct wlr_layer_surface_v1 *wlr_surface = surface->layer_surface;
+	if (surface->output != output || !wlr_surface->initialized) {
+		return false;
+	}
+	if ((int)wlr_surface->current.layer != layer) {
+		return false;
+	}
+	return (wlr_surface->current.exclusive_zone > 0) == exclusive;
+}
+
+/* Configures every layer surface matching one (output, layer, exclusive-zone)
+ * pass, updating `usable_area` as exclusive zones are claimed. */
+static void configure_layer_pass(struct klest_server *server,
+	struct klest_output *output, int layer, bool exclusive,
+	const struct wlr_box *full_area, struct wlr_box *usable_area)
+{
+	struct klest_layer_surface *surface;
+	wl_list_for_each(surface, &server->layer_surfaces, link) {
+		if (!surface_matches_pass(surface, output, layer, exclusive)) {
+			continue;
+		}
+		wlr_scene_layer_surface_v1_configure(surface->scene,
+			full_area, usable_area);
+	}
+}
+
 void klest_arrange_output_layers(struct klest_output *output)
 {
 	struct klest_server *server = output->server;
@@ -65,24 +96,8 @@ void klest_arrange_output_layers(struct klest_output *output)
 	for (int exclusive = 1; exclusive >= 0; exclusive--) {
 		for (int layer = ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
 				layer >= ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND; layer--) {
-			struct klest_layer_surface *surface;
-			wl_list_for_each(surface, &server->layer_surfaces, link) {
-				struct wlr_layer_surface_v1 *wlr_surface =
-					surface->layer_surface;
-				if (surface->output != output || !wlr_surface->initialized) {
-					continue;
-				}
-				if ((int)wlr_surface->current.layer != layer) {
-					continue;
-				}
-				bool wants_exclusive =
-					wlr_surface->current.exclusive_zone > 0;
-				if (wants_exclusive != (exclusive == 1)) {
-					continue;
-				}
-				wlr_scene_layer_surface_v1_configure(surface->scene,
-					&full_area, &usable_area);
-			}
+			configure_layer_pass(server, output, layer, exclusive == 1,
+				&full_area, &usable_area);
 		}
 	}
 
