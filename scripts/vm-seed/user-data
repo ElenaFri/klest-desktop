@@ -1,0 +1,103 @@
+#cloud-config
+# Klest test VM — NoCloud seed (see INSTALL.md, "Testing in a QEMU VM").
+#
+# Provisions the Debian cloud image into the prepared state INSTALL.md describes:
+# root console password, key-based SSH, DHCP networking, the standard Debian
+# kernel (the cloud kernel lacks the virtio-GPU driver), the pixman renderer
+# default, and every build dependency, so the VM can compile Klest on first boot.
+#
+# Kernel swap: the running cloud kernel cannot be purged non-interactively
+# (debconf asks "Abort kernel removal?"), so the swap happens in two phases:
+#  1. first boot — install the standard kernel, pin it as the GRUB default,
+#     enable the klest-purge-cloud-kernel service, reboot;
+#  2. next boot — the service sees a non-cloud kernel running and purges the
+#     cloud kernels without any prompt, then disables itself.
+
+hostname: klest-vm
+disable_root: false
+ssh_pwauth: false
+
+# Console login only; SSH uses the injected key (scripts/vm-headless.sh).
+chpasswd:
+  expire: false
+  users:
+    - name: root
+      password: klest
+      type: text
+
+users:
+  - name: root
+    ssh_authorized_keys:
+      - __KLEST_VM_PUBKEY__  # substituted by scripts/vm-seed.sh at ISO build time
+
+package_update: true
+packages:
+  - build-essential
+  - dpkg-dev
+  - debhelper
+  - meson
+  - ninja-build
+  - pkg-config
+  - libwlroots-0.18-dev
+  - libwayland-dev
+  - libwayland-bin
+  - wayland-protocols
+  - libxkbcommon-dev
+  - libsystemd-dev
+  - dbus-daemon
+  - libgtk-4-dev
+  - foot
+  - openssh-server
+  - linux-image-amd64
+  - vim
+
+write_files:
+  - path: /usr/local/sbin/klest-purge-cloud-kernel.sh
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+      # Purges the cloud kernels once a standard kernel is running (idempotent).
+      case "$(uname -r)" in
+        *cloud*)
+          # Still running a cloud kernel: purging it would need confirmation.
+          exit 0
+          ;;
+      esac
+      DEBIAN_FRONTEND=noninteractive apt-get -y purge \
+        'linux-image-cloud-amd64' 'linux-image-.*-cloud-amd64'
+      update-grub
+      systemctl disable klest-purge-cloud-kernel.service
+
+  - path: /etc/systemd/system/klest-purge-cloud-kernel.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Purge cloud kernels once the standard kernel is running
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/klest-purge-cloud-kernel.sh
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - sh -c "echo 'WLR_RENDERER=pixman' >> /etc/environment"
+  # Stop tracking the cloud kernel metapackage, and pin the standard kernel as
+  # the GRUB default (it sorts below the cloud kernel of the same version).
+  - sh -c "apt-get -y remove linux-image-cloud-amd64"
+  - |
+    #!/bin/sh
+    standard="$(ls /boot/vmlinuz-*-amd64 | grep -v -- -cloud- | head -n1)"
+    version="$(basename "${standard}" | sed 's/^vmlinuz-//')"
+    sed -i "s|^GRUB_DEFAULT=.*|GRUB_DEFAULT=\"Advanced options for Debian GNU/Linux>Debian GNU/Linux, with Linux ${version}\"|" /etc/default/grub
+    update-grub
+  - systemctl enable klest-purge-cloud-kernel.service
+
+power_state:
+  mode: reboot
+  message: "Rebooting after Klest VM provisioning"
+  timeout: 30
+  condition: true

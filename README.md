@@ -1,6 +1,6 @@
 # Klest
 
-_**A lean Wayland desktop environment in C, built to adapt and thriving through simplicity.**_
+_A lean Wayland desktop environment in C, built to adapt and thriving through simplicity._
 
 [![CI](https://github.com/ElenaFri/klest-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/ElenaFri/klest-desktop/actions/workflows/ci.yml)
 [![Coverage](https://codecov.io/gh/ElenaFri/klest-desktop/branch/main/graph/badge.svg)](https://codecov.io/gh/ElenaFri/klest-desktop)

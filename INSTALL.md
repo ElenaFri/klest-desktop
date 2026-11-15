@@ -199,6 +199,40 @@ sudo virt-customize -a klest-debian.qcow2 \
     --run-command 'systemctl enable systemd-networkd'
 ```
 
+#### Variant: cloud-init seed (hosts without libguestfs)
+
+On a host where `virt-customize` is unavailable or cannot run unprivileged
+(e.g. openSUSE, whose `/boot` kernels are root-only), use the cloud-init NoCloud
+seed in [`scripts/vm-seed/`](scripts/vm-seed/) instead. It provisions the same
+state, fully scripted and reproducible. Build the seed ISO with:
+
+```sh
+scripts/vm-seed.sh
+```
+
+The script injects your `~/.ssh/id_ed25519.pub` (override with
+`KLEST_VM_PUBKEY`) so the VM accepts key-based SSH for
+`scripts/vm-headless.sh`.
+
+The seed sets the root console password (`klest`), injects the SSH key,
+configures DHCP, swaps the cloud kernel for the standard Debian kernel, sets
+`WLR_RENDERER=pixman`, and preinstalls every build dependency — so with this
+variant, skip the "Prepare Debian" and SSH-key injection steps below entirely.
+
+Create the overlay, then boot it once with the seed attached:
+
+```sh
+qemu-img create -f qcow2 -F qcow2 -b klest-debian.qcow2 klest-package-test.qcow2
+setsid qemu-system-x86_64 -enable-kvm -m 4096 -smp 2 -display none \
+    -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:2222-:22 \
+    -drive file=klest-package-test.qcow2,if=virtio \
+    -cdrom klest-vm-seed.iso >/tmp/klest-vm.log 2>&1 </dev/null &
+scripts/vm-wait-ssh.sh    # waits until SSH answers
+```
+
+The first boot installs the build dependencies and reboots on the standard
+kernel (several minutes). The seed only needs to be attached on the first boot.
+
 Create a disposable overlay once; keep it beside the base image:
 
 ```sh
@@ -289,13 +323,20 @@ On the VM's graphical console (not over SSH), run `cd /root/klest && ./build/src
 
 ### Test the Debian packages
 
-On the host, from the project root, transfer the locally built packages:
+On a **Debian host**, from the project root, transfer the locally built packages:
 
 ```sh
 scp -P 2222 ../klest_0.1.0~alpha.1-1_amd64.deb ../klest-settings_0.1.0~alpha.1-1_amd64.deb root@localhost:/root/
 ```
 
-In the VM, install them:
+On a **non-Debian host** (e.g. openSUSE), build the packages inside the VM
+instead: transfer the source as above, then
+
+```sh
+ssh -p 2222 root@localhost 'cd /root/klest && dpkg-buildpackage -us -uc -b'
+```
+
+This produces the packages in `/root/` inside the VM. In the VM, install them:
 
 ```sh
 apt install -y dbus-daemon
