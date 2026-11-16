@@ -20,32 +20,12 @@
 #include <wayland-client.h>
 #include <wayland-client-protocol.h>
 
+#include "klest-panel-layout.h"
 #include "klest-workspace-v1-client-protocol.h"
 #include "wayland/font.h"
 #include "wayland/layer_client.h"
 #include "wayland/shm.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
-
-#define KLEST_PANEL_HEIGHT 36U
-#define KLEST_GLYPH_SCALE 2U
-#define KLEST_WS_ORIGIN_X 96U
-#define KLEST_WS_BOX_WIDTH 26U
-#define KLEST_PANEL_MAX_WORKSPACES 9U
-#define KLEST_WINDOW_ORIGIN_X (KLEST_WS_ORIGIN_X + \
-	KLEST_PANEL_MAX_WORKSPACES * KLEST_WS_BOX_WIDTH + 8U)
-#define KLEST_WINDOW_BOX_WIDTH 144U
-#define KLEST_WINDOW_LABEL_CHARS 14U
-#define KLEST_WINDOW_TITLE_LENGTH 128U
-
-struct panel_window {
-	struct panel_window *next;
-	uint32_t id;
-	uint32_t workspace;
-	char title[KLEST_WINDOW_TITLE_LENGTH];
-	bool active;
-	bool minimized;
-	bool maximized;
-};
 
 struct panel {
 	struct klest_layer_client layer;
@@ -91,20 +71,13 @@ static void draw_text(const struct klest_canvas *canvas, const char *text,
 }
 
 /* Returns the number of workspace indicators that fit, capped for safety. */
-static uint32_t visible_workspaces(const struct panel *panel)
-{
-	uint32_t count = panel->workspace_count;
-	return count < KLEST_PANEL_MAX_WORKSPACES ?
-		count : KLEST_PANEL_MAX_WORKSPACES;
-}
-
 static void draw_workspaces(const struct panel *panel,
 	const struct klest_canvas *canvas, uint32_t text_y)
 {
 	const uint32_t active_bg = 0xff5c8fe8U;
 	const uint32_t box_bg = 0xff2a2d3eU;
 	const uint32_t text_color = 0xffe8eaf5U;
-	uint32_t count = visible_workspaces(panel);
+	uint32_t count = klest_panel_visible_workspaces(panel->workspace_count);
 	for (uint32_t i = 0; i < count; i++) {
 		uint32_t box_x = KLEST_WS_ORIGIN_X + i * KLEST_WS_BOX_WIDTH;
 		if (box_x + KLEST_WS_BOX_WIDTH > canvas->width) {
@@ -125,15 +98,6 @@ static uint32_t panel_clock_x(uint32_t width)
 	return width > clock_width + 16U ? width - clock_width - 16U : 0U;
 }
 
-/* Window-list box colour: active, minimized, or plain. */
-static uint32_t window_box_color(const struct panel_window *window)
-{
-	if (window->active) {
-		return 0xff5c8fe8U;
-	}
-	return window->minimized ? 0xff20222cU : 0xff2a2d3eU;
-}
-
 static void draw_windows(const struct panel *panel,
 	const struct klest_canvas *canvas, uint32_t clock_x)
 {
@@ -148,62 +112,15 @@ static void draw_windows(const struct panel *panel,
 			break;
 		}
 		fill_rect(canvas, x, 4U, KLEST_WINDOW_BOX_WIDTH - 4U,
-			canvas->height - 8U, window_box_color(window));
+			canvas->height - 8U, klest_panel_window_box_color(window));
 		char label[KLEST_WINDOW_LABEL_CHARS + 1U];
-		size_t length = 0;
-		while (length < KLEST_WINDOW_LABEL_CHARS &&
-				window->title[length] != '\0') {
-			label[length] = window->title[length];
-			length++;
-		}
-		if (length == KLEST_WINDOW_LABEL_CHARS &&
-				window->title[length] != '\0') {
-			label[length - 3U] = '.';
-			label[length - 2U] = '.';
-			label[length - 1U] = '.';
-		}
-		label[length] = '\0';
+		klest_panel_truncate_title(label, window->title);
 		uint32_t text_width = klest_font_width(label, 1U);
 		uint32_t text_x = x + (KLEST_WINDOW_BOX_WIDTH - text_width) / 2U;
 		uint32_t text_y = (canvas->height - KLEST_FONT_GLYPH) / 2U;
 		draw_text(canvas, label, text_x, text_y, 1U, 0xffe8eaf5U);
 		x += KLEST_WINDOW_BOX_WIDTH;
 	}
-}
-
-static struct panel_window *window_by_id(struct panel *panel, uint32_t id)
-{
-	for (struct panel_window *window = panel->windows;
-			window != NULL; window = window->next) {
-		if (window->id == id) {
-			return window;
-		}
-	}
-	return NULL;
-}
-
-static struct panel_window *window_at(struct panel *panel, double pointer_x)
-{
-	uint32_t x = KLEST_WINDOW_ORIGIN_X;
-	uint32_t right = panel_clock_x(panel->layer.width);
-	if (right > 8U) {
-		right -= 8U;
-	}
-	for (struct panel_window *window = panel->windows;
-			window != NULL; window = window->next) {
-		if (window->workspace != panel->active_workspace) {
-			continue;
-		}
-		if (x + KLEST_WINDOW_BOX_WIDTH > right) {
-			break;
-		}
-		if (pointer_x >= (double)x &&
-				pointer_x < (double)(x + KLEST_WINDOW_BOX_WIDTH - 4U)) {
-			return window;
-		}
-		x += KLEST_WINDOW_BOX_WIDTH;
-	}
-	return NULL;
 }
 
 static bool draw_panel(struct panel *panel)
@@ -282,7 +199,7 @@ static void workspace_handle_window(void *data, // NOSONAR: protocol ABI
 {
 	struct panel *panel = data;
 	(void)manager;
-	struct panel_window *window = window_by_id(panel, id);
+	struct panel_window *window = klest_panel_window_by_id(panel->windows, id);
 	if (window == NULL) {
 		window = calloc(1, sizeof(*window));
 		if (window == NULL) {
@@ -306,16 +223,10 @@ static void workspace_handle_window_closed(void *data,
 {
 	struct panel *panel = data;
 	(void)manager;
-	struct panel_window **link = &panel->windows;
-	while (*link != NULL) {
-		if ((*link)->id == id) {
-			struct panel_window *dead = *link;
-			*link = dead->next;
-			free(dead);
-			panel->needs_redraw = true;
-			return;
-		}
-		link = &(*link)->next;
+	bool removed = false;
+	panel->windows = klest_panel_window_remove(panel->windows, id, &removed);
+	if (removed) {
+		panel->needs_redraw = true;
 	}
 }
 
@@ -324,17 +235,6 @@ static const struct klest_workspace_manager_v1_listener workspace_listener = {
 	.window = workspace_handle_window,
 	.window_closed = workspace_handle_window_closed,
 };
-
-/* Maps a pointer x coordinate to a workspace index, or -1 if none. */
-static int workspace_at(const struct panel *panel, double x)
-{
-	if (x < (double)KLEST_WS_ORIGIN_X) {
-		return -1;
-	}
-	uint32_t index = (uint32_t)((x - (double)KLEST_WS_ORIGIN_X) /
-		(double)KLEST_WS_BOX_WIDTH);
-	return index < visible_workspaces(panel) ? (int)index : -1;
-}
 
 static void pointer_handle_enter(void *data,
 	struct wl_pointer *pointer, // NOSONAR: Wayland callback ABI.
@@ -384,25 +284,26 @@ static void pointer_handle_button(void *data,
 			panel->workspace_manager == NULL) {
 		return;
 	}
-	int index = workspace_at(panel, panel->pointer_x);
-	if (index >= 0) {
+	bool supports_windows = wl_proxy_get_version(
+		(struct wl_proxy *)panel->workspace_manager) >= 2;
+	struct klest_panel_click click = klest_panel_click_at(
+		panel->workspace_count, panel->active_workspace, panel->windows,
+		panel_clock_x(panel->layer.width), panel->pointer_x, supports_windows);
+	switch (click.action) {
+	case KLEST_PANEL_ACTION_ACTIVATE_WORKSPACE:
 		klest_workspace_manager_v1_activate(panel->workspace_manager,
-			(uint32_t)index);
-		return;
-	}
-	if (wl_proxy_get_version((struct wl_proxy *)panel->workspace_manager) < 2) {
-		return;
-	}
-	const struct panel_window *window = window_at(panel, panel->pointer_x);
-	if (window == NULL) {
-		return;
-	}
-	if (window->active && !window->minimized) {
+			click.target);
+		break;
+	case KLEST_PANEL_ACTION_MINIMIZE_WINDOW:
 		klest_workspace_manager_v1_minimize_toplevel(
-			panel->workspace_manager, window->id);
-	} else {
+			panel->workspace_manager, click.target);
+		break;
+	case KLEST_PANEL_ACTION_ACTIVATE_WINDOW:
 		klest_workspace_manager_v1_activate_toplevel(
-			panel->workspace_manager, window->id);
+			panel->workspace_manager, click.target);
+		break;
+	case KLEST_PANEL_ACTION_NONE:
+		break;
 	}
 }
 

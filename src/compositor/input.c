@@ -22,6 +22,8 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_virtual_keyboard_v1.h>
+#include <wlr/types/wlr_virtual_pointer_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
@@ -266,7 +268,7 @@ static void keyboard_handle_destroy(struct wl_listener *listener, void *data)
 }
 
 static void server_new_keyboard(struct klest_server *server,
-	struct wlr_input_device *device)
+	struct wlr_input_device *device, bool apply_default_keymap)
 {
 	struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
 
@@ -285,16 +287,11 @@ static void server_new_keyboard(struct klest_server *server,
 	}
 	struct xkb_keymap *keymap = xkb_keymap_new_from_names(context, NULL,
 		XKB_KEYMAP_COMPILE_NO_FLAGS);
-	if (keymap == NULL) {
-		wlr_log(WLR_ERROR, "failed to create XKB keymap");
-		xkb_context_unref(context);
-		free(keyboard);
-		return;
-	}
-	bool keymap_set = wlr_keyboard_set_keymap(wlr_keyboard, keymap);
+	bool keymap_set = keymap != NULL && apply_default_keymap &&
+		wlr_keyboard_set_keymap(wlr_keyboard, keymap);
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
-	if (!keymap_set) {
+	if (!keymap_set && apply_default_keymap) {
 		wlr_log(WLR_ERROR, "failed to set keyboard keymap");
 		free(keyboard);
 		return;
@@ -325,6 +322,16 @@ static void server_new_pointer(struct klest_server *server,
 	wlr_cursor_attach_input_device(server->cursor, device);
 }
 
+/* Reflects the connected devices in the seat capabilities. */
+static void update_seat_capabilities(struct klest_server *server)
+{
+	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
+	if (!wl_list_empty(&server->keyboards)) {
+		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
+	}
+	wlr_seat_set_capabilities(server->seat, caps);
+}
+
 static void server_new_input(struct wl_listener *listener, void *data)
 {
 	struct klest_server *server = wl_container_of(listener, server, new_input);
@@ -332,7 +339,7 @@ static void server_new_input(struct wl_listener *listener, void *data)
 
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
-		server_new_keyboard(server, device);
+		server_new_keyboard(server, device, true);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
 		server_new_pointer(server, device);
@@ -341,11 +348,30 @@ static void server_new_input(struct wl_listener *listener, void *data)
 		break;
 	}
 
-	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
-	if (!wl_list_empty(&server->keyboards)) {
-		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-	}
-	wlr_seat_set_capabilities(server->seat, caps);
+	update_seat_capabilities(server);
+}
+
+/* Virtual keyboards/pointers (wlr-virtual-keyboard/pointer protocols) feed the
+ * same input paths as real devices, which keeps the seat handling uniform and
+ * lets automated tests drive the compositor. */
+static void server_new_virtual_keyboard(struct wl_listener *listener, void *data)
+{
+	struct klest_server *server =
+		wl_container_of(listener, server, virtual_keyboard);
+	struct wlr_virtual_keyboard_v1 *virtual = data;
+	/* A client-provided keymap wins; otherwise Klest applies its default. */
+	server_new_keyboard(server, &virtual->keyboard.base,
+		!virtual->has_keymap);
+	update_seat_capabilities(server);
+}
+
+static void server_new_virtual_pointer(struct wl_listener *listener, void *data)
+{
+	struct klest_server *server =
+		wl_container_of(listener, server, virtual_pointer);
+	struct wlr_virtual_pointer_v1_new_pointer_event *event = data;
+	server_new_pointer(server, &event->new_pointer->pointer.base);
+	update_seat_capabilities(server);
 }
 
 static void seat_request_cursor(struct wl_listener *listener, void *data)
@@ -397,6 +423,19 @@ void klest_input_init(struct klest_server *server)
 
 	server->new_input.notify = server_new_input;
 	wl_signal_add(&server->backend->events.new_input, &server->new_input);
+
+	/* Virtual input protocols: clients may create virtual keyboards/pointers
+	 * (automation, testing). They go through the same paths as real devices. */
+	server->virtual_keyboard_mgr =
+		wlr_virtual_keyboard_manager_v1_create(server->display);
+	server->virtual_keyboard.notify = server_new_virtual_keyboard;
+	wl_signal_add(&server->virtual_keyboard_mgr->events.new_virtual_keyboard,
+		&server->virtual_keyboard);
+	server->virtual_pointer_mgr =
+		wlr_virtual_pointer_manager_v1_create(server->display);
+	server->virtual_pointer.notify = server_new_virtual_pointer;
+	wl_signal_add(&server->virtual_pointer_mgr->events.new_virtual_pointer,
+		&server->virtual_pointer);
 
 	server->seat = wlr_seat_create(server->display, "seat0");
 	server->request_cursor.notify = seat_request_cursor;

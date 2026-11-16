@@ -36,6 +36,7 @@ struct test_client {
 	bool window_maximized;
 	bool toplevel_activated;
 	bool configured;
+	bool popup_configured;
 };
 
 static void wm_base_ping(void *data, struct xdg_wm_base *wm_base,
@@ -91,6 +92,42 @@ static void toplevel_close(void *data,
 static const struct xdg_toplevel_listener toplevel_listener = {
 	.configure = toplevel_configure,
 	.close = toplevel_close,
+};
+
+static void popup_surface_configure(void *data,
+	struct xdg_surface *xdg_surface, uint32_t serial)
+{
+	struct test_client *client = data;
+	xdg_surface_ack_configure(xdg_surface, serial);
+	client->popup_configured = true;
+}
+
+static const struct xdg_surface_listener popup_surface_listener = {
+	.configure = popup_surface_configure,
+};
+
+static void popup_handle_configure(void *data,
+	struct xdg_popup *popup, // NOSONAR: protocol callback ABI requires this type.
+	int32_t x, int32_t y, int32_t width, int32_t height)
+{
+	(void)data;
+	(void)popup;
+	(void)x;
+	(void)y;
+	(void)width;
+	(void)height;
+}
+
+static void popup_handle_done(void *data,
+	struct xdg_popup *popup) // NOSONAR: protocol callback ABI requires this type.
+{
+	(void)data;
+	(void)popup;
+}
+
+static const struct xdg_popup_listener popup_listener = {
+	.configure = popup_handle_configure,
+	.popup_done = popup_handle_done,
 };
 
 static void workspace_state(void *data,
@@ -381,6 +418,154 @@ static bool exercise_window_management(struct test_client *client)
 	return true;
 }
 
+/* Creates a transient popup parented to the toplevel: the compositor must find
+ * the parent's scene tree, reparent the popup under it and send a configure. */
+static bool exercise_popup(struct test_client *client)
+{
+	struct xdg_positioner *positioner =
+		xdg_wm_base_create_positioner(client->wm_base);
+	struct wl_surface *surface =
+		wl_compositor_create_surface(client->compositor);
+	struct xdg_surface *xdg_surface = surface != NULL ?
+		xdg_wm_base_get_xdg_surface(client->wm_base, surface) : NULL;
+	struct xdg_popup *popup = NULL;
+	bool ok = positioner != NULL && xdg_surface != NULL &&
+		xdg_surface_add_listener(xdg_surface, &popup_surface_listener,
+			client) == 0;
+	if (ok) {
+		xdg_positioner_set_size(positioner, 16, 16);
+		xdg_positioner_set_anchor_rect(positioner, 0, 0, 16, 16);
+		popup = xdg_surface_get_popup(xdg_surface, client->xdg_surface,
+			positioner);
+		ok = popup != NULL &&
+			xdg_popup_add_listener(popup, &popup_listener, client) == 0;
+	}
+	if (ok) {
+		client->popup_configured = false;
+		wl_surface_commit(surface);
+		for (int attempt = 0; attempt < 5 && !client->popup_configured;
+				attempt++) {
+			if (wl_display_roundtrip(client->display) < 0) {
+				ok = false;
+				break;
+			}
+		}
+		ok = ok && client->popup_configured;
+		if (!ok) {
+			fprintf(stderr, "integration client: popup never configured\n");
+		}
+	}
+
+	if (popup != NULL) {
+		xdg_popup_destroy(popup);
+	}
+	if (xdg_surface != NULL) {
+		xdg_surface_destroy(xdg_surface);
+	}
+	if (surface != NULL) {
+		wl_surface_destroy(surface);
+	}
+	if (positioner != NULL) {
+		xdg_positioner_destroy(positioner);
+	}
+	(void)wl_display_roundtrip(client->display);
+	return ok;
+}
+
+/* Drives the client-initiated xdg-toplevel requests. The compositor mirrors
+ * maximize/minimize back over the workspace protocol, which is the observable
+ * contract checked here; fullscreen only has to be handled without error. */
+static bool exercise_client_requests(struct test_client *client)
+{
+	/* The window-management stage left the window maximized. */
+	xdg_toplevel_unset_maximized(client->toplevel);
+	if (wl_display_roundtrip(client->display) < 0 || client->window_maximized) {
+		fprintf(stderr, "integration client: client unmaximize had no effect\n");
+		return false;
+	}
+
+	xdg_toplevel_set_maximized(client->toplevel);
+	if (wl_display_roundtrip(client->display) < 0 || !client->window_maximized) {
+		fprintf(stderr, "integration client: client maximize had no effect\n");
+		return false;
+	}
+
+	xdg_toplevel_set_fullscreen(client->toplevel, NULL);
+	xdg_toplevel_unset_fullscreen(client->toplevel);
+	if (wl_display_roundtrip(client->display) < 0) {
+		fprintf(stderr, "integration client: fullscreen roundtrip failed\n");
+		return false;
+	}
+
+	xdg_toplevel_set_minimized(client->toplevel);
+	if (wl_display_roundtrip(client->display) < 0 || !client->window_minimized) {
+		fprintf(stderr, "integration client: client minimize had no effect\n");
+		return false;
+	}
+	return true;
+}
+
+/* Exercises defensive rejections that have no happy-path trigger: the shared
+ * SHM allocator must reject bad arguments, and the workspace protocol must
+ * ignore requests for ids that do not exist. */
+static bool exercise_edge_cases(struct test_client *client)
+{
+	uint32_t pixels[4] = {0};
+	if (klest_shm_buffer_create(NULL, 8, 8, 0) != NULL ||
+			klest_shm_buffer_create(client->shm, 0, 8, 0) != NULL ||
+			klest_shm_buffer_create(client->shm, 8, 0xffffffffU, 0) != NULL) {
+		fprintf(stderr, "integration client: SHM allocator accepted bad args\n");
+		return false;
+	}
+	if (klest_shm_buffer_create_from_data(NULL, 2, 2, 8, pixels) != NULL ||
+			klest_shm_buffer_create_from_data(client->shm, 2, 2, 4, pixels) != NULL) {
+		fprintf(stderr, "integration client: SHM image allocator accepted bad "
+			"args\n");
+		return false;
+	}
+
+	/* With valid dimensions and a live wl_shm, the allocator must still fail
+	 * gracefully (NULL, no crash) when the backing temp file cannot be made.
+	 * The Wayland connection is already established, so poking XDG_RUNTIME_DIR
+	 * only affects the SHM temp-file path, not the live display. */
+	char *saved_runtime = getenv("XDG_RUNTIME_DIR");
+	char *saved_copy = saved_runtime != NULL ? strdup(saved_runtime) : NULL;
+	char long_dir[4200];
+	memset(long_dir, 'a', sizeof(long_dir) - 1);
+	long_dir[sizeof(long_dir) - 1] = '\0';
+	bool shm_env_ok =
+		(unsetenv("XDG_RUNTIME_DIR") == 0 &&
+			klest_shm_buffer_create(client->shm, 4, 4, 0) == NULL) &&
+		(setenv("XDG_RUNTIME_DIR", long_dir, 1) == 0 &&
+			klest_shm_buffer_create(client->shm, 4, 4, 0) == NULL) &&
+		(setenv("XDG_RUNTIME_DIR", "/klest-nonexistent-runtime-dir", 1) == 0 &&
+			klest_shm_buffer_create(client->shm, 4, 4, 0) == NULL);
+	if (saved_copy != NULL) {
+		(void)setenv("XDG_RUNTIME_DIR", saved_copy, 1);
+		free(saved_copy);
+	} else {
+		(void)unsetenv("XDG_RUNTIME_DIR");
+	}
+	if (!shm_env_ok) {
+		fprintf(stderr, "integration client: SHM allocator did not reject an "
+			"unusable XDG_RUNTIME_DIR\n");
+		return false;
+	}
+
+	/* An unknown toplevel id must be a silent no-op, not a crash. */
+	klest_workspace_manager_v1_minimize_toplevel(client->workspace_manager,
+		0xdeadbeefU);
+	klest_workspace_manager_v1_activate_toplevel(client->workspace_manager,
+		0xdeadbeefU);
+	klest_workspace_manager_v1_toggle_maximize_toplevel(
+		client->workspace_manager, 0xdeadbeefU);
+	if (wl_display_roundtrip(client->display) < 0) {
+		fprintf(stderr, "integration client: unknown-id roundtrip failed\n");
+		return false;
+	}
+	return true;
+}
+
 static bool unmap_toplevel(struct test_client *client)
 {
 	wl_surface_attach(client->surface, NULL, 0, 0);
@@ -400,8 +585,11 @@ int main(void)
 {
 	struct test_client client = {0};
 	bool ok = connect_client(&client) && exercise_toplevel(&client) &&
+		exercise_popup(&client) &&
 		exercise_window_management(&client) &&
-		exercise_workspaces(&client) && unmap_toplevel(&client);
+		exercise_workspaces(&client) &&
+		exercise_client_requests(&client) && exercise_edge_cases(&client) &&
+		unmap_toplevel(&client);
 	destroy_client(&client);
 	return ok ? 0 : 1;
 }

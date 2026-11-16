@@ -7,6 +7,7 @@ ignore:
   - "third_party/**"
   - "test/**"
   - "src/*-protocol.h"
+  - "src/tools/klest-settings.c" # standalone GTK tool, exercised manually
   - "build*/**"
   - "debian/**"
   - "scripts/**"

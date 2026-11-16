@@ -148,6 +148,7 @@ if have_compositor
         executable(
             'klest-panel',
             'components/klest-panel.c',
+            'components/klest-panel-layout.c',
             include_directories: [klest_inc, include_directories('.')],
             dependencies: klest_wayland_client_dep,
             install: true,
@@ -156,6 +157,7 @@ if have_compositor
         executable(
             'klest-launcher',
             'components/klest-launcher.c',
+            'components/klest-launcher-filter.c',
             include_directories: [klest_inc, include_directories('.')],
             dependencies: [klest_wayland_client_dep, xkbcommon_dep],
             install: true,

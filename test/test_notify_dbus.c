@@ -298,6 +298,79 @@ static bool exercise_unknown_close(struct notify_test *test)
 	return true;
 }
 
+/* The daemon must advertise its capabilities, at least "body" (plain-text
+ * bodies), which clients query before formatting rich notifications. */
+static bool exercise_capabilities(struct notify_test *test)
+{
+	sd_bus_error error = SD_BUS_ERROR_NULL;
+	sd_bus_message *reply = NULL;
+	int r = sd_bus_call_method(test->bus, NOTIFY_SERVICE, NOTIFY_PATH,
+		NOTIFY_IFACE, "GetCapabilities", &error, &reply, "");
+	bool ok = r >= 0 && sd_bus_message_enter_container(reply, 'a', "s") >= 0;
+	bool saw_body = false;
+	const char *cap = NULL;
+	while (ok && sd_bus_message_read(reply, "s", &cap) > 0) {
+		if (strcmp(cap, "body") == 0) {
+			saw_body = true;
+		}
+	}
+	if (!ok || !saw_body) {
+		fprintf(stderr, "notify test: GetCapabilities did not advertise body\n");
+		ok = false;
+	}
+	sd_bus_message_unref(reply);
+	sd_bus_error_free(&error);
+	return ok;
+}
+
+/* The card stack is bounded (5 cards): a sixth notification silently evicts the
+ * oldest, and a surviving middle card must still close cleanly, exercising the
+ * drop-oldest and mid-array removal paths. */
+static bool exercise_overflow(struct notify_test *test)
+{
+	uint32_t ids[6] = {0};
+	for (size_t i = 0; i < 6; i++) {
+		if (!send_notification(test, "stacked", 0, 0, &ids[i])) {
+			return false;
+		}
+	}
+	size_t event_start = test->event_count;
+	return close_notification(test, ids[1]) &&
+		wait_for_close_event(test, ids[1], CLOSED_REASON_CLOSED, event_start);
+}
+
+/* Replacing an id that was never shown is not an error: the daemon takes a
+ * fresh slot and keeps the requested id (so clients can pre-allocate ids). */
+static bool exercise_replace_unknown(struct notify_test *test)
+{
+	const uint32_t ghost = 0x0badf00dU;
+	uint32_t id = 0;
+	if (!send_notification(test, "ghost replace", ghost, 0, &id)) {
+		return false;
+	}
+	if (id != ghost) {
+		fprintf(stderr, "notify test: unknown replace changed the id "
+			"(%u != %u)\n", id, ghost);
+		return false;
+	}
+	size_t event_start = test->event_count;
+	return close_notification(test, ghost) &&
+		wait_for_close_event(test, ghost, CLOSED_REASON_CLOSED, event_start);
+}
+
+/* A negative expiry means "use the daemon default": the notification is still
+ * delivered and closeable (we close it rather than wait out the long default). */
+static bool exercise_default_timeout(struct notify_test *test)
+{
+	uint32_t id = 0;
+	if (!send_notification(test, "default timeout", 0, -1, &id)) {
+		return false;
+	}
+	size_t event_start = test->event_count;
+	return close_notification(test, id) &&
+		wait_for_close_event(test, id, CLOSED_REASON_CLOSED, event_start);
+}
+
 static pid_t start_daemon(const char *path)
 {
 	pid_t pid = fork();
@@ -309,13 +382,52 @@ static pid_t start_daemon(const char *path)
 	_exit(127);
 }
 
+/* Only one notification daemon may own org.freedesktop.Notifications. A second
+ * daemon started while the first holds the name must detect the conflict and
+ * exit non-zero rather than fight for the bus name or crash. */
+static bool exercise_name_conflict(const char *daemon_path)
+{
+	pid_t rival = start_daemon(daemon_path);
+	if (rival < 0) {
+		fprintf(stderr, "notify test: cannot fork rival daemon\n");
+		return false;
+	}
+	int status = -1;
+	while (waitpid(rival, &status, 0) < 0 && errno == EINTR) {
+		/* Reap the rival after an interrupting signal. */
+	}
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 1) {
+		fprintf(stderr, "notify test: rival daemon did not fail cleanly "
+			"(exited=%d code=%d signal=%d)\n", WIFEXITED(status),
+			WEXITSTATUS(status), WIFSIGNALED(status));
+		return false;
+	}
+	return true;
+}
+
+/* Stops the daemon with SIGTERM and reaps it. The daemon's poll loop can lose a
+ * single SIGTERM to the classic "signal delivered just before poll" race (its
+ * poll blocks indefinitely while cards linger), so we re-send SIGTERM while
+ * reaping non-blockingly: a later signal lands while poll is actually blocked
+ * and the daemon exits cleanly, which also lets it flush its coverage data. */
 static void stop_daemon(pid_t pid)
 {
 	if (pid <= 0) {
 		return;
 	}
-	if (kill(pid, SIGTERM) != 0 && errno != ESRCH) {
-		perror("notify test: kill daemon");
+	for (int attempt = 0; attempt < 100; attempt++) {
+		if (kill(pid, SIGTERM) != 0 && errno == ESRCH) {
+			break;
+		}
+		int status;
+		pid_t r = waitpid(pid, &status, WNOHANG);
+		if (r == pid || (r < 0 && errno != EINTR)) {
+			return;
+		}
+		struct timespec delay = {.tv_sec = 0, .tv_nsec = 50000000L};
+		while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+			/* Finish the grace delay after an interrupting signal. */
+		}
 	}
 	int status;
 	while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
@@ -338,7 +450,10 @@ int main(void)
 	}
 	bool bus_ready = daemon_pid > 0 && test_bus_connect(&test);
 	bool ok = bus_ready && exercise_lifecycle(&test) &&
-		exercise_replace(&test) && exercise_unknown_close(&test);
+		exercise_replace(&test) && exercise_unknown_close(&test) &&
+		exercise_capabilities(&test) && exercise_overflow(&test) &&
+		exercise_replace_unknown(&test) && exercise_default_timeout(&test) &&
+		exercise_name_conflict(daemon_path);
 
 	if (test.closed_slot != NULL) {
 		sd_bus_slot_unref(test.closed_slot);

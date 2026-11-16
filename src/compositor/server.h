@@ -23,6 +23,8 @@ struct wlr_output;
 struct wlr_scene_tree;
 struct wlr_layer_shell_v1;
 struct wl_global;
+struct wlr_virtual_keyboard_manager_v1;
+struct wlr_virtual_pointer_manager_v1;
 
 struct klest_workspace_state {
 	uint32_t active;
@@ -102,6 +104,13 @@ struct klest_server { // NOSONAR: wide by design — mirrors the canonical wlroo
 	struct wl_listener request_cursor;
 	struct wl_listener request_set_selection;
 	struct wl_list keyboards; /* klest_keyboard.link */
+
+	/* Virtual input (wlr-virtual-keyboard/pointer): lets Wayland clients
+	 * inject input, which enables automated functional tests. */
+	struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
+	struct wlr_virtual_pointer_manager_v1 *virtual_pointer_mgr;
+	struct wl_listener virtual_keyboard;
+	struct wl_listener virtual_pointer;
 
 	/* Interactive move/resize grab state. */
 	enum klest_cursor_mode cursor_mode;

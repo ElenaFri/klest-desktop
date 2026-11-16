@@ -2,6 +2,7 @@
 
 _A lean Wayland desktop environment in C, built to adapt and thriving through simplicity._
 
+[![Release](https://img.shields.io/github/v/release/ElenaFri/klest-desktop?include_prereleases)](https://github.com/ElenaFri/klest-desktop/releases)
 [![CI](https://github.com/ElenaFri/klest-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/ElenaFri/klest-desktop/actions/workflows/ci.yml)
 [![Coverage](https://codecov.io/gh/ElenaFri/klest-desktop/branch/main/graph/badge.svg)](https://codecov.io/gh/ElenaFri/klest-desktop)
 

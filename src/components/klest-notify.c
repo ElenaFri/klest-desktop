@@ -11,6 +11,7 @@
 
 #include <errno.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -458,6 +459,14 @@ static int poll_timeout(struct notify *n)
 	return expiry < bus_ms ? expiry : (int)bus_ms;
 }
 
+static volatile sig_atomic_t notify_terminated;
+
+static void handle_terminate(int signal_number) // NOSONAR: signal handler ABI
+{
+	(void)signal_number;
+	notify_terminated = 1;
+}
+
 static bool notify_run(struct notify *n)
 {
 	int wl_fd = wl_display_get_fd(n->layer.display);
@@ -467,7 +476,7 @@ static bool notify_run(struct notify *n)
 		return false;
 	}
 
-	while (n->running && !n->layer.closed) {
+	while (!notify_terminated && n->running && !n->layer.closed) {
 		if (!drain_bus(n)) {
 			return false;
 		}
@@ -491,7 +500,7 @@ static bool notify_run(struct notify *n)
 		int r;
 		do {
 			r = poll(fds, 2, poll_timeout(n));
-		} while (r < 0 && errno == EINTR);
+		} while (r < 0 && errno == EINTR && !notify_terminated);
 		if (r < 0) {
 			perror("klest-notify: poll");
 			return false;
@@ -550,6 +559,15 @@ int main(int argc, char *argv[])
 	}
 
 	struct notify n = {.next_id = 1, .running = true};
+	/* Exit cleanly on SIGTERM/SIGINT (the session and the test harness both
+	 * stop the daemon this way). */
+	struct sigaction action = {.sa_handler = handle_terminate};
+	sigemptyset(&action.sa_mask);
+	if (sigaction(SIGTERM, &action, NULL) != 0 ||
+			sigaction(SIGINT, &action, NULL) != 0) {
+		fprintf(stderr, "klest-notify: cannot install signal handlers\n");
+		return 1;
+	}
 	if (!klest_layer_client_connect(&n.layer) || !notify_create_surface(&n)) {
 		notify_finish(&n);
 		return 1;

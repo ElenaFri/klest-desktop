@@ -364,6 +364,95 @@ static void test_format_color_clamps(void)
 	assert(strcmp(buf, "#ff0000") == 0);
 }
 
+/* Backslashes, newlines and tabs must survive the save/load round trip, so the
+ * TOML we write stays valid and parses back to the exact bytes. */
+static void test_save_escapes_special_chars(void)
+{
+	const char *path = "klest-test-escapes.toml";
+	struct klest_config out;
+	klest_config_set_defaults(&out);
+	snprintf(out.terminal, sizeof(out.terminal), "a\tb");      /* tab */
+	snprintf(out.launcher, sizeof(out.launcher), "c\\d");      /* backslash */
+	out.autostart_count = 1;
+	snprintf(out.autostart[0], KLEST_AUTOSTART_CMD_MAX, "e\nf"); /* newline */
+
+	assert(klest_config_save(&out, path));
+
+	struct klest_config in;
+	bool ok = klest_config_load(&in, path);
+	remove(path);
+
+	assert(ok);
+	assert(strcmp(in.terminal, "a\tb") == 0);
+	assert(strcmp(in.launcher, "c\\d") == 0);
+	assert(in.autostart_count == 1);
+	assert(strcmp(in.autostart[0], "e\nf") == 0);
+}
+
+/* Saving with a NULL path writes to the resolved default location. */
+static void test_save_uses_default_path(void)
+{
+	const char *path = "klest-test-save-default.toml";
+	setenv("KLEST_CONFIG", path, 1);
+
+	struct klest_config out;
+	klest_config_set_defaults(&out);
+	out.keyboard_repeat_rate = 42;
+	bool saved = klest_config_save(&out, NULL);
+
+	struct klest_config in;
+	bool loaded = saved && klest_config_load(&in, NULL);
+	unsetenv("KLEST_CONFIG");
+	remove(path);
+
+	assert(saved);
+	assert(loaded);
+	assert(in.keyboard_repeat_rate == 42);
+}
+
+/* With no resolvable location, loading keeps defaults (not an error) while
+ * saving fails (there is nowhere to write). */
+static void test_no_config_location(void)
+{
+	unsetenv("KLEST_CONFIG");
+	unsetenv("XDG_CONFIG_HOME");
+	unsetenv("HOME");
+
+	struct klest_config cfg;
+	assert(klest_config_load(&cfg, NULL)); /* no path to read: defaults kept */
+	assert(cfg.keyboard_repeat_rate == 25);
+	assert(!klest_config_save(&cfg, NULL)); /* nowhere to write */
+
+	setenv("HOME", "/root", 1); /* restore for any later test */
+}
+
+/* A parent path that runs through a regular file cannot be created, so the save
+ * fails at directory creation rather than clobbering anything. */
+static void test_save_parent_is_file(void)
+{
+	write_config("klest-test-blocking-file", "x");
+
+	struct klest_config cfg;
+	klest_config_set_defaults(&cfg);
+	assert(!klest_config_save(&cfg, "klest-test-blocking-file/sub/config.toml"));
+
+	remove("klest-test-blocking-file");
+}
+
+/* An absurdly long path is rejected rather than truncated into the wrong file. */
+static void test_save_path_too_long(void)
+{
+	char path[5000];
+	memset(path, 'a', sizeof(path) - 1);
+	path[0] = '/';
+	path[sizeof(path) - 1] = '\0';
+	path[sizeof(path) - 12] = '/'; /* a directory component beyond the buffer */
+
+	struct klest_config cfg;
+	klest_config_set_defaults(&cfg);
+	assert(!klest_config_save(&cfg, path));
+}
+
 int main(void)
 {
 	test_defaults();
@@ -383,5 +472,10 @@ int main(void)
 	test_save_creates_parent_dirs();
 	test_save_reports_failures();
 	test_format_color_clamps();
+	test_save_escapes_special_chars();
+	test_save_uses_default_path();
+	test_save_parent_is_file();
+	test_save_path_too_long();
+	test_no_config_location();
 	return 0;
 }
